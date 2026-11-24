@@ -1,0 +1,27 @@
+# Graph only code relevant to the Studio/engine, never user projects or secrets.
+.git/
+.agents/
+.codex/
+.aws/
+node_modules/
+projects/
+dist/
+out/
+.studio-logs/
+test-results/
+playwright-report/
+graphify-out/
+docs/
+game-feasibility/
+skills/
+*.png
+*.gif
+*.zip
+*.tgz
+*.env
+*.env.*
+.env*
+*.key
+*credentials*
+*secret*
+test_art.px.js

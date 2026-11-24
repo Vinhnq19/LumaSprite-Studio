@@ -1,0 +1,5 @@
+#quality-source-review .quality-review-body{overflow:auto;padding:16px;min-height:0}
+#quality-source-review .compare{align-items:flex-start}
+#quality-review-parts{white-space:pre-wrap;max-height:140px;overflow:auto}
+#quality-review-error{color:#ffb8a5;white-space:pre-line}
+#quality-source-review .proposal-image{max-height:46vh}
