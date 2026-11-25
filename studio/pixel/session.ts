@@ -256,7 +256,11 @@ export class Session {
   release(): void { this.held = false; if (this.dirty && !this.conflict) { clearTimeout(this.timer); this.timer = setTimeout(() => { void this.flush().catch(this.onerror); }, 500); } }
   end(before: PixelDocument | undefined, label: string): void {
     if (!before || !this.doc) return;
-    try { validateDocument(this.doc); if (this.history.commit(before, this.doc, label)) this.changed(); }
+    try {
+      validateDocument(this.doc);
+      // A new stroke replaces the cel buffer before writing, so this committed snapshot stays stable until IndexedDB clones it.
+      if (this.history.commit(before, this.doc, label)) this.changed(snapshot(this.doc));
+    }
     catch (e) { this.doc = before; this.onchange(); throw e; }
     this.normalize(); this.onchange();
   }
@@ -346,9 +350,9 @@ export class Session {
       }
     })();
   }
-  changed(): void {
+  changed(committed?: PixelDocument): void {
     this.version++; this.dirty = true; this.onstatus(this.conflict ? 'Xung đột · bản nháp được giữ' : 'Chưa lưu…'); clearTimeout(this.timer);
-    const doc = this.doc!; void draft('put', doc.id, structuredClone(doc)).catch(this.onerror);
+    const doc = this.doc!; void draft('put', doc.id, committed ?? structuredClone(doc)).catch(this.onerror);
     if (!this.conflict && !this.held) this.timer = setTimeout(() => { void this.flush().catch(this.onerror); }, 500);
   }
   async flush(manual = false): Promise<void> {

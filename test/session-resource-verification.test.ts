@@ -1,13 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Session } from '../studio/pixel/session.ts';
+import { draft, Session } from '../studio/pixel/session.ts';
 import { celFor, newAsset, newDocument, validateDocument, wireStringify, wireParse } from '../src/studio/pixel/model.ts';
 import { snapshot } from '../src/studio/pixel/history.ts';
 
 // Isolated browser transport: delayed responses exercise identity guards, not CLI/rendering.
 function environment() {
   const originalFetch = globalThis.fetch, originalIDB = globalThis.indexedDB;
-  const documents = new Map<string, any>(), words = new Map<string, Uint32Array>(), drafts = new Map<string, string>();
+  const documents = new Map<string, any>(), words = new Map<string, Uint32Array>(), drafts = new Map<string, unknown>();
+  let draftOpenGate: Promise<void> | undefined;
   let sequence = 1, saveGate: Promise<void> | undefined, readGate: Promise<void> | undefined, copyGate: Promise<void> | undefined, readError = false, mismatchBlob = false;
   let saved: (() => void) | undefined, reading: (() => void) | undefined, copying: (() => void) | undefined;
   const sessions: Session[] = [];
@@ -21,16 +22,19 @@ function environment() {
   }
   (globalThis as any).indexedDB = { open() {
     const request: any = {};
-    queueMicrotask(() => {
+    const ready = () => {
       request.result = { close() {}, transaction() {
         const tx: any = { objectStore: () => ({
           get: (key: string) => ({ result: drafts.get(key) }),
-          put: (value: string, key: string) => { drafts.set(key, value); return {}; },
+          put: (value: unknown, key: string) => { drafts.set(key, structuredClone(value)); return {}; },
           delete: (key: string) => { drafts.delete(key); return {}; },
         }) };
         queueMicrotask(() => tx.oncomplete?.()); return tx;
       } }; request.onsuccess?.();
-    }); return request;
+    };
+    if (draftOpenGate) void draftOpenGate.then(ready);
+    else queueMicrotask(ready);
+    return request;
   } };
   globalThis.fetch = (async (input: any, init: any = {}) => {
     const url = new URL(String(input), 'http://resource.test'), id = url.pathname.split('/')[4], d = documents.get(id);
@@ -61,6 +65,11 @@ function environment() {
   }) as typeof fetch;
   return {
     persist, words, digest,
+    delayDraftOpen() {
+      let release!: () => void;
+      draftOpenGate = new Promise<void>(resolve => { release = resolve; });
+      return () => { draftOpenGate = undefined; release(); };
+    },
     failRead(failed: boolean) { readError = failed; },
     mismatchBlob(mismatched: boolean) { mismatchBlob = mismatched; },
     session(doc = newDocument('Tài nguyên', 18, 18)): any { const session = new Session(); session.doc = clone(persist(doc)); session.normalize(); session.hold(); sessions.push(session); return session; },
@@ -282,5 +291,30 @@ test('Session copy verification: an edit during copy keeps the source draft dirt
     assert.notEqual(copiedId, s.doc.id);
     assert.equal(s.doc.name, 'Nét vẽ mới hơn'); assert.equal(s.dirty, true); assert.equal(s.conflict, true);
     await s.copy(); assert.equal(s.dirty, false); assert.equal(s.conflict, false);
+  } finally { env.restore(); }
+});
+
+test('A delayed draft of a completed stroke keeps its pixels during the next gesture', async () => {
+  const env = environment();
+  try {
+    const editor = env.session();
+    const before = editor.begin();
+    const cel = celFor(editor.asset, editor.layer.id, editor.frameId, true)!;
+    cel.data![0] = 0x102030ff;
+    const releaseDraft = env.delayDraftOpen();
+    editor.end(before, 'First stroke');
+
+    // The next writable gesture copies the previous cel before changing it.
+    cel.data = cel.data!.slice();
+    cel.data[0] = 0x405060ff;
+    editor.asset.name = 'Next edit';
+    releaseDraft();
+
+    const stored = await draft('get', editor.doc.id);
+    assert.ok(stored && typeof stored !== 'string');
+    const saved = stored.assets[0];
+    assert.notEqual(saved.name, editor.asset.name);
+    assert.equal(celFor(saved, saved.layers[0].id, saved.frames[0].id)?.data?.[0], 0x102030ff);
+    assert.equal(cel.data[0], 0x405060ff);
   } finally { env.restore(); }
 });
