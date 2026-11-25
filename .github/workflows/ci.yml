@@ -18,7 +18,12 @@ jobs:
       - name: Installed package runs
         shell: bash
         run: |
-          archive="$(npm pack --silent)"
+          # The prepare script runs Vite; its stdout precedes the .tgz filename.
+          archive="$(npm pack --silent | tail -n 1)"
+          if [[ -z "$archive" || ! -f "$archive" ]]; then
+            echo "::error::npm pack did not produce a valid archive: $archive"
+            exit 1
+          fi
           mkdir -p ../studio-smoke
           npm install --prefix ../studio-smoke --no-audit --no-fund "$PWD/$archive"
           node ../studio-smoke/node_modules/lumasprite-studio/bin/lumasprite.js --help
