@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { wireParse } from '../../src/studio/pixel/model.ts';
+import { celFor, wireParse, wireStringify } from '../../src/studio/pixel/model.ts';
 import { Img } from '../../src/studio/raster.ts';
 import { encodePng } from '../../src/node/studio/png.ts';
 
@@ -166,4 +166,45 @@ test('Pixel: PNG and sheet import keeps native pixels', async ({ page }) => {
   await expect.poll(() => firstPixel(page, 0, 0, 1)).toBe(0xff0000ff);
   await expect.poll(() => firstPixel(page, 0, 1, 1)).toBe(0x0000ffff);
   await expect.poll(() => firstPixel(page, 0, 0, 1, 1)).toBe(0x1c2d3e55);
+});
+
+test('Pixel: restore old JSON draft and preserve new structured-clone draft pixels', async ({ page }) => {
+  await create(page, 'Bản nháp tương thích');
+  const saved = await document(page), asset = saved.assets[0];
+  celFor(asset, asset.layers[0].id, asset.frames[0].id, true)!.data![0] = 0xa04020ff;
+  const raw = wireStringify(saved);
+  await page.evaluate(({ id, raw }) => new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open('pxl-pixel-drafts', 1);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const tx = open.result.transaction('drafts', 'readwrite');
+      tx.objectStore('drafts').put(raw, id);
+      tx.oncomplete = () => { open.result.close(); resolve(); };
+      tx.onerror = () => reject(tx.error);
+    };
+  }), { id: saved.id, raw });
+  await page.locator('#draft').click();
+  await expect(page.locator('#save-status')).toContainText('Đã khôi phục bản nháp');
+  await page.locator('header [data-command="file.save"]').click();
+  await expect.poll(() => firstPixel(page)).toBe(0xa04020ff);
+  await expect(page.locator('#save-status')).toContainText('Đã lưu');
+
+  await page.route('**/api/pixel/projects/' + saved.id, route => route.request().method() === 'PUT'
+    ? route.fulfill({ status: 409, json: { error: 'Fixture stale revision' } }) : route.continue());
+  await color(page, '#360ac5ff');
+  await paint(page);
+  await expect.poll(() => page.evaluate(id => new Promise(resolve => {
+    const open = indexedDB.open('pxl-pixel-drafts', 1);
+    open.onsuccess = () => {
+      const tx = open.result.transaction('drafts', 'readonly');
+      const request = tx.objectStore('drafts').get(id);
+      tx.oncomplete = () => {
+        const asset = request.result?.assets?.[0];
+        const cel = asset?.cels[asset.layers[0].cels[asset.frames[0].id]];
+        resolve(cel?.data instanceof Uint32Array ? cel.data[0] : null);
+        open.result.close();
+      };
+    };
+  }), saved.id)).toBe(0x360ac5ff);
+  await expect(page.locator('#save-status')).toContainText('Xung đột');
 });

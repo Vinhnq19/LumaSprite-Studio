@@ -13,7 +13,7 @@ export async function api(path: string, method = 'GET', value?: unknown, signal?
   const text = await r.text(); let data; try { data = wireParse(text); } catch { throw new Error(`Máy chủ trả dữ liệu không hợp lệ (${r.status}).`); }
   if (!r.ok) { const e = new Error(data.error ?? `HTTP ${r.status}`) as Error & { status: number }; e.status = r.status; throw e; } return data;
 }
-export async function draft(action: 'get' | 'put' | 'delete', key: string, value?: string): Promise<any> {
+export async function draft(action: 'get' | 'put' | 'delete', key: string, value?: PixelDocument): Promise<PixelDocument | string | undefined> {
   return new Promise((resolve, reject) => {
     const open = indexedDB.open('pxl-pixel-drafts', 1); open.onupgradeneeded = () => open.result.createObjectStore('drafts'); open.onerror = () => reject(open.error);
     open.onsuccess = () => { const db = open.result, tx = db.transaction('drafts', action === 'get' ? 'readonly' : 'readwrite'), store = tx.objectStore('drafts'); const request = action === 'get' ? store.get(key) : action === 'put' ? store.put(value, key) : store.delete(key); tx.oncomplete = () => { resolve(request.result); db.close(); }; tx.onerror = () => { reject(tx.error); db.close(); }; };
@@ -75,7 +75,7 @@ export class Session {
   }
   async restoreDraft(): Promise<void> {
     if (!this.doc) return; const saved = await draft('get', this.doc.id); if (!saved) throw new Error('Không có bản nháp.');
-    const d = wireParse(saved) as PixelDocument; validateDocument(d); this.conflict = d.revision !== this.doc.revision; this.doc = d; this.dirty = true; this.normalize(); this.onchange(); await this.loadFrame(); this.onstatus(this.conflict ? 'Bản nháp có revision cũ. Lưu bản sao để giữ cả hai.' : 'Đã khôi phục bản nháp.');
+    const d: PixelDocument = typeof saved === 'string' ? wireParse(saved) : saved; validateDocument(d); this.conflict = d.revision !== this.doc.revision; this.doc = d; this.dirty = true; this.normalize(); this.onchange(); await this.loadFrame(); this.onstatus(this.conflict ? 'Bản nháp có revision cũ. Lưu bản sao để giữ cả hai.' : 'Đã khôi phục bản nháp.');
   }
   private async loadCel(doc: PixelDocument, asset: PixelAsset, id: string): Promise<void> {
     const c = asset.cels[id]; if (!c || c.data) return;
@@ -256,7 +256,11 @@ export class Session {
   release(): void { this.held = false; if (this.dirty && !this.conflict) { clearTimeout(this.timer); this.timer = setTimeout(() => { void this.flush().catch(this.onerror); }, 500); } }
   end(before: PixelDocument | undefined, label: string): void {
     if (!before || !this.doc) return;
-    try { validateDocument(this.doc); if (this.history.commit(before, this.doc, label)) this.changed(); }
+    try {
+      validateDocument(this.doc);
+      // A new stroke replaces the cel buffer before writing, so this committed snapshot stays stable until IndexedDB clones it.
+      if (this.history.commit(before, this.doc, label)) this.changed(snapshot(this.doc));
+    }
     catch (e) { this.doc = before; this.onchange(); throw e; }
     this.normalize(); this.onchange();
   }
@@ -346,9 +350,9 @@ export class Session {
       }
     })();
   }
-  changed(): void {
+  changed(committed?: PixelDocument): void {
     this.version++; this.dirty = true; this.onstatus(this.conflict ? 'Xung đột · bản nháp được giữ' : 'Chưa lưu…'); clearTimeout(this.timer);
-    const doc = this.doc!; void draft('put', doc.id, wireStringify(doc)).catch(this.onerror);
+    const doc = this.doc!; void draft('put', doc.id, committed ?? structuredClone(doc)).catch(this.onerror);
     if (!this.conflict && !this.held) this.timer = setTimeout(() => { void this.flush().catch(this.onerror); }, 500);
   }
   async flush(manual = false): Promise<void> {
@@ -388,7 +392,7 @@ export class Session {
           }
         }
       }
-      if (version === this.version) { this.dirty = false; await draft('delete', doc.id); } else { void draft('put', doc.id, wireStringify(this.doc)).catch(this.onerror); this.timer = setTimeout(() => { void this.flush().catch(this.onerror); }, 500); }
+      if (version === this.version) { this.dirty = false; await draft('delete', doc.id); } else { void draft('put', doc.id, structuredClone(this.doc)).catch(this.onerror); this.timer = setTimeout(() => { void this.flush().catch(this.onerror); }, 500); }
       this.onstatus(`Đã lưu · r${saved.revision}${this.history.trimmed ? ' · Đã rút gọn undo theo giới hạn bộ nhớ' : ''}`);
     } catch (e) { if ((e as any).status === 409) this.conflict = true; this.onstatus(this.conflict ? 'Xung đột · bản nháp được giữ' : 'Lưu lỗi · thử lại hoặc sao lưu bản nháp'); throw e; }
     finally { this.saving = false; }
