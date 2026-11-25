@@ -8,8 +8,7 @@ import { renderMapCells, preflightMapImage } from '../src/studio/tilemap-render.
 import { MapStroke, getMap, registerTileset, createMap, addMapLayer, updateMapLayer } from '../src/studio/map-commands.ts';
 import { PixelStore } from '../src/node/studio/pixel-store.ts';
 import { startRender } from '../src/node/studio/runner.ts';
-import type { ExportResult } from '../src/node/studio/render.ts';
-import { loadSource } from '../src/node/load.ts';
+import type { ExportResult } from '../src/node/studio/render-result.ts';
 import { mapFixture } from './tilemap-fixture.ts';
 import { decodeTestPng, unzipTestStored } from './fixtures/image-assertions.ts';
 
@@ -51,7 +50,7 @@ test('Map renderer: incremental stroke rectangles reproduce full RGBA across chu
   stroke.cancel(); assert.notDeepEqual(displayed.data, renderMapCells(d, 'forest').data, 'Cancel still requires restoring the full original view');
 });
 
-test('Terrain worker: exact native assembly/source, PNG/JSON/ZIP and oversize preflight', async () => {
+test('Terrain worker: exact native assembly, PNG/JSON/ZIP and oversize preflight', async () => {
   const root = mkdtempSync(join(tmpdir(), 'pxl-terrain-worker-'));
   try {
     const store = new PixelStore(root), d = mapFixture(33, 2); atlasPixels(d);
@@ -62,8 +61,7 @@ test('Terrain worker: exact native assembly/source, PNG/JSON/ZIP and oversize pr
     const output = await startRender({ ...request, operation: 'assemble', assetId: material.id, frameId: material.frames[0].id, name: 'Đất cỏ', options: { tileSize: 16, inset: 2, sampling: 'mirror' } }).promise as ExportResult;
     const proposal = wireParse(Buffer.from(output.data).toString('utf8')), preview = decodeTestPng(Buffer.from(proposal.png, 'base64'));
     assert.equal(preview.w, 128); assert.equal(preview.h, 96); assert.deepEqual(preview.data, composite(proposal.asset, proposal.asset.frames[0].id).data);
-    const rebuilt = loadSource(proposal.asset.source.files['art.px.js']).image('Đất cỏ');
-    assert.deepEqual(rebuilt.data, preview.data); assert.deepEqual(proposal.asset.palette, [0x339944ff]);
+    assert.equal(proposal.asset.source, undefined); assert.deepEqual(proposal.asset.palette, [0x339944ff]);
     const zip = await startRender({ ...request, operation: 'map-export', mapId: 'forest', format: 'zip' }).promise as ExportResult;
     const files = unzipTestStored(Buffer.from(zip.data)), portable = JSON.parse(files['map.json'].toString('utf8'));
     assert.equal(portable.revision, saved.revision); assert.equal(portable.layers[0].chunks.length, 2); assert.equal(portable.tilesets[0].tiles[47].mask, null);

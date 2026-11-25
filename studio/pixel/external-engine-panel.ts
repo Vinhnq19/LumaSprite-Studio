@@ -30,11 +30,13 @@ export class ExternalEnginePanel {
   private readonly selection: () => Uint8Array | undefined;
   private readonly apply: (path: string, value: Record<string, unknown>) => Promise<PixelDocument>;
   private readonly applied: (saved: PixelDocument) => Promise<void>;
+  private readonly applying: (pending: boolean) => void;
   private get checked() { return this.el<HTMLInputElement>('approved'); }
 
   constructor(
     host: HTMLElement, session: Session, prepare: () => Promise<void>, selection: () => Uint8Array | undefined,
     apply: (path: string, value: Record<string, unknown>) => Promise<PixelDocument>, applied: (saved: PixelDocument) => Promise<void>,
+    applying: (pending: boolean) => void,
   ) {
     this.host = host;
     this.session = session;
@@ -42,6 +44,7 @@ export class ExternalEnginePanel {
     this.selection = selection;
     this.apply = apply;
     this.applied = applied;
+    this.applying = applying;
     host.innerHTML = `
       <form class="external-engine-form">
         <p id="external-engine-connection" role="status"></p>
@@ -118,7 +121,7 @@ export class ExternalEnginePanel {
     this.checked.checked = false;
   }
 
-  get isBusy() { return this.busy; }
+  refresh(): void { if (this.visible) this.render(); }
 
   private async run(action: () => Promise<void>) {
     if (this.busy) return;
@@ -214,11 +217,16 @@ export class ExternalEnginePanel {
   private async accept() {
     const job = this.job, preview = this.preview;
     if (!job || !preview || !this.checked.checked) return;
-    await this.prepare();
-    await this.applied(await this.apply(`${this.path}/${job.id}/apply`, {
-      approved: true, revision: job.revision, version: preview.version, digest: preview.digest,
-    }));
-    this.setJob({ ...job, state: 'applied' });
+    this.applying(true);
+    try {
+      await this.prepare();
+      await this.applied(await this.apply(`${this.path}/${job.id}/apply`, {
+        approved: true, revision: job.revision, version: preview.version, digest: preview.digest,
+      }));
+      this.setJob({ ...job, state: 'applied' });
+    } finally {
+      this.applying(false);
+    }
   }
 
   private paint() {

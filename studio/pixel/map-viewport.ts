@@ -1,7 +1,7 @@
 import type { Session } from './session.ts';
 import { MapStroke, getMap, getMapLayer } from '../../src/studio/map-commands.ts';
 import { mapPixelSize, renderMapCells } from '../../src/studio/tilemap-render.ts';
-import type { Img } from '../../src/core/image.ts';
+import type { Img } from '../../src/studio/raster.ts';
 import type { PixelDocument } from '../../src/studio/pixel/model.ts';
 
 export interface CellRect { x: number; y: number; w: number; h: number }

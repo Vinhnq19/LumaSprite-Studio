@@ -1,4 +1,4 @@
-import { Img } from '../../src/core/image.ts';
+import { Img } from '../../src/studio/raster.ts';
 import { createMap, getMap, MapStroke, registerTileset } from '../../src/studio/map-commands.ts';
 import { celFor, duplicateFrame, newAsset, newDocument, type PixelAsset, type PixelDocument } from '../../src/studio/pixel/model.ts';
 import { emptyProduction, productionKind } from '../../src/studio/production.ts';

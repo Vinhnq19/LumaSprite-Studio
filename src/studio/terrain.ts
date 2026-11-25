@@ -1,4 +1,4 @@
-import { luma8 } from '../core/color.ts';
+import { luma8 } from './raster.ts';
 
 /** pxl mask order, deliberately independent of engine-specific atlas order. */
 export const TERRAIN_BITS = Object.freeze({ N: 1, E: 2, S: 4, W: 8, NE: 16, SE: 32, SW: 64, NW: 128 });

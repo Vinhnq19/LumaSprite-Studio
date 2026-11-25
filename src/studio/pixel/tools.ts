@@ -1,4 +1,4 @@
-import { channels } from '../../core/color.ts';
+import { channels } from '../raster.ts';
 export interface Brush { size: number; round: boolean; mirrorX: boolean; mirrorY: boolean; mask?: Uint8Array }
 export interface Point { x: number; y: number }
 export function line(a: Point, b: Point, set: (x: number, y: number) => void): void {

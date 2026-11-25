@@ -40,7 +40,7 @@ test('Cel HTTP reads verify the requested blob while project open, save and expo
 
 test('Resource HTTP verification: revision, ownership, compact SSE, copy and ZIP import use exactly the same lazy bytes', async () => {
   const root = mkdtempSync(join(tmpdir(), 'pxl-resource-http-independent-'));
-  const app = await serveStudio(root, { port: 0, providers: { codex: join(root, 'missing-codex.exe'), antigravity: join(root, 'missing-anti.exe') } });
+  const app = await serveStudio(root, { port: 0 });
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
     const request = async (path: string, method = 'GET', input?: any) => fetch(app.url + 'api/pixel/' + path, { method, headers: { origin: app.url.slice(0, -1), ...(input ? { 'content-type': 'application/json' } : {}) }, body: input ? wireStringify(input) : undefined });

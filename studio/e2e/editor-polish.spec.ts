@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { Img } from '../../src/core/image.ts';
-import { encodePng } from '../../src/node/png.ts';
+import { Img } from '../../src/studio/raster.ts';
+import { encodePng } from '../../src/node/studio/png.ts';
 import { wireParse, type PixelDocument } from '../../src/studio/pixel/model.ts';
 import { decodeTestPng } from '../../test/fixtures/image-assertions.ts';
 

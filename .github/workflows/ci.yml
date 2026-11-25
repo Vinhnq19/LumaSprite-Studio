@@ -15,11 +15,11 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci
       - run: npm run check
-      - run: node bin/pxl.js build examples/shop.px.js --no-preview
       - name: Installed package runs
         shell: bash
         run: |
-          npm pack
-          mkdir ../smoke && cd ../smoke && npm init -y > /dev/null
-          npm install ../${{ github.event.repository.name }}/pxl-pixelart-*.tgz
-          npx pxl build node_modules/pxl-pixelart/examples/basics.px.js --no-preview
+          archive="$(npm pack --silent)"
+          mkdir -p ../studio-smoke
+          npm install --prefix ../studio-smoke --no-audit --no-fund "$PWD/$archive"
+          node ../studio-smoke/node_modules/lumasprite-studio/bin/lumasprite.js --help
+          node ../studio-smoke/node_modules/lumasprite-studio/bin/lumasprite.js agent --help

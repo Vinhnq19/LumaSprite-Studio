@@ -1,5 +1,5 @@
-import { Img } from '../../core/image.ts';
-import { pack, channels } from '../../core/color.ts';
+import { Img } from '../raster.ts';
+import { pack, channels } from '../raster.ts';
 import type { AssetMetadata } from '../types.ts';
 import { validateMetadata } from '../validation.ts';
 import { defaultPalette } from './palette.ts';

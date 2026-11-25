@@ -1,11 +1,11 @@
 import { agentInputBytes, agentPath, agentVersion, type AgentCode } from '../studio/agent-contract.ts';
 
-const help = `pxl agent capabilities [--port 4321]
-pxl agent call [--port 4321]
+const help = `lumasprite agent capabilities [--port 4321]
+lumasprite agent call [--port 4321]
 
-Start Studio with pxl studio --root DIR first. The CLI only connects to 127.0.0.1.
+Start Studio with lumasprite studio --root DIR first. The CLI only connects to 127.0.0.1.
 'call' reads one v1 JSON request from stdin. Responses are JSON on stdout.
-Optional mutations use PXL_AGENT_WRITE_TOKEN from the process environment.
+Optional mutations use LUMASPRITE_AGENT_WRITE_TOKEN from the process environment.
 Exit codes: 0 success, 2 usage or validation, 3 permission, 4 conflict/not ready,
 5 unavailable or processing failure.`;
 
@@ -19,7 +19,7 @@ export async function agentCli(argv: string[]): Promise<number> {
   const [command, flag, rawPort] = argv, port = argv.length === 1 ? 4321 : Number(rawPort);
   if (!['capabilities', 'call'].includes(command) || (argv.length !== 1 && !(argv.length === 3 && flag === '--port' && /^\d{1,5}$/.test(rawPort))) ||
       !Number.isInteger(port) || port < 1 || port > 65535) {
-    return failure('INVALID_REQUEST', 'Xem pxl agent --help.', 2);
+    return failure('INVALID_REQUEST', 'Xem lumasprite agent --help.', 2);
   }
   let body = JSON.stringify({ version: agentVersion, operation: 'capabilities', input: {} });
   if (command === 'call') {
@@ -35,7 +35,7 @@ export async function agentCli(argv: string[]): Promise<number> {
   }
   const origin = `http://127.0.0.1:${port}`;
   try {
-    const token = process.env.PXL_AGENT_WRITE_TOKEN;
+    const token = process.env.LUMASPRITE_AGENT_WRITE_TOKEN ?? process.env.PXL_AGENT_WRITE_TOKEN;
     const response = await fetch(origin + agentPath, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(45_000),
       headers: { origin, 'content-type': 'application/json', ...(token && { authorization: `Bearer ${token}` }) }, body });
     const result = await response.json();

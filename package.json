@@ -1,38 +1,27 @@
 {
-  "name": "pxl-pixelart",
+  "name": "lumasprite-studio",
   "version": "0.1.0",
-  "description": "LumaSprite Studio: a local pixel-art and game-animation editor with layers, AI proposals, tilesets and the compatible pxl engine.",
+  "description": "Local pixel editor, animation timeline, tilemap and production workspace for game assets.",
   "type": "module",
-  "license": "MIT",
   "bin": {
-    "pxl": "./bin/pxl.js"
+    "lumasprite": "./bin/lumasprite.js"
   },
   "exports": {
-    ".": "./dist/index.js",
-    "./core": "./dist/core/index.js"
+    ".": "./dist/index.js"
   },
   "files": [
     "bin",
-    "src",
     "dist",
-    "scripts",
-    "types",
-    "examples/*.px.js",
-    "SKILL.md",
-    "reference.md",
-    "lighting.md",
+    "scripts/build.js",
+    "scripts/launch-studio.js",
+    "scripts/mock-external-engine.mjs",
     "start-studio.bat",
     "ARCHITECTURE.md",
     "DEVELOPMENT.md",
     "SECURITY.md",
     "THIRD_PARTY_NOTICES.md",
-    "docs/brand",
-    "docs/STUDIO.md",
-    "docs/pixel-editor-implementation.md",
-    "docs/ai-generation-quality.md",
-    "docs/pixel-consistency.md",
-    "docs/studio-implementation.md",
-    "skills/pxl-art"
+    "docs/brand/lumasprite.png",
+    "docs/STUDIO.md"
   ],
   "engines": {
     "node": ">=22.18"
@@ -40,22 +29,15 @@
   "scripts": {
     "build": "node scripts/build.js",
     "prepare": "node scripts/build.js",
-    "test": "node --experimental-strip-types --test --test-concurrency=4 --disable-warning=ExperimentalWarning \"test/**/*.test.ts\"",
+    "test": "node --experimental-strip-types --test --test-concurrency=4 --disable-warning=ExperimentalWarning \"test/**/!(quality-static-source).test.ts\"",
     "typecheck": "tsc -p tsconfig.json",
     "check": "npm run typecheck && npm test",
-    "studio": "node bin/pxl.js studio",
+    "studio": "node bin/lumasprite.js studio",
     "studio:dev": "vite studio --host 127.0.0.1",
     "test:studio-ui": "playwright test --config studio/playwright.config.ts"
   },
   "devDependencies": {
-    "@codemirror/autocomplete": "^6.20.3",
-    "@codemirror/commands": "^6.11.1",
-    "@codemirror/lang-javascript": "^6.2.5",
-    "@codemirror/language": "^6.13.1",
-    "@codemirror/state": "^6.7.6",
-    "@codemirror/view": "^6.43.14",
     "@playwright/test": "^1.64.1",
-    "@types/eslint-scope": "8.4.0",
     "@types/node": "^24.0.0",
     "typescript": "^7.0.0",
     "vite": "^6.4.4"
@@ -63,15 +45,8 @@
   "keywords": [
     "pixel-art",
     "sprites",
-    "dsl",
     "gamedev",
     "sprite-sheet",
-    "ai-agent",
-    "claude-code",
-    "skill"
-  ],
-  "dependencies": {
-    "acorn": "8.15.0",
-    "eslint-scope": "8.4.0"
-  }
+    "tilemap"
+  ]
 }

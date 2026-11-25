@@ -1,4 +1,4 @@
-import { Img } from '../core/image.ts';
+import { Img } from './raster.ts';
 import { over } from './pixel/model.ts';
 import { sampleMotionPlayback } from './quality/playback.ts';
 

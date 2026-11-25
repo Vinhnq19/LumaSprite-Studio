@@ -1,9 +1,9 @@
 import { composite, playback, playbackTag, type PixelDocument } from '../../studio/pixel/model.ts';
-import { packSheet, sheetJson } from '../../core/render.ts';
-import { encodePng } from '../png.ts';
-import { encodeGif } from '../gif.ts';
+import { spriteSheet } from './atlas.ts';
+import { encodePng } from './png.ts';
+import { encodeGif } from './gif.ts';
 import { zipFiles } from './zip.ts';
-import type { ExportResult } from './render.ts';
+import type { ExportResult } from './render-result.ts';
 import { StudioError } from './store.ts';
 export interface PixelExport { document: PixelDocument; assetId?: string; frameId?: string; tagId?: string; format: 'png' | 'gif' | 'strip' | 'atlas' | 'zip'; selected?: string[] }
 export function exportPixel(r: PixelExport): ExportResult {
@@ -29,8 +29,8 @@ export function exportPixel(r: PixelExport): ExportResult {
   }
   const assets = r.format === 'atlas' ? r.document.assets.filter(a => !r.selected?.length || r.selected.includes(a.id)) : [asset];
   const items = assets.flatMap(a => (r.format === 'strip' ? sequence : a.frames.map((frame, index) => ({ frame, index }))).map((s, index) => ({ name: `${a.name}_${a.id.slice(0, 8)}_${index}`, img: composite(a, s.frame.id), ms: s.frame.duration })));
-  const packed = packSheet(items, r.format === 'strip' ? items.length : undefined, r.format === 'strip' ? 0 : 1, r.format === 'atlas' ? { pack: 'maxrects', extrude: 1, maxSize: 4096 } : undefined);
-  const json = JSON.parse(sheetJson('image.png', packed.sheet, packed.frames, [], Object.fromEntries(assets.map(a => [a.name, a.metadata]))));
+  const packed = spriteSheet(items, r.format === 'strip');
+  const json = { frames: packed.frames, meta: { app: 'LumaSprite Studio', image: 'image.png', format: 'RGBA8888', size: { w: packed.sheet.w, h: packed.sheet.h }, scale: '1' } } as { frames: typeof packed.frames; meta: Record<string, any> };
   let offset = 0;
   json.meta.frameTags = [];
   json.meta.pxl = { schemaVersion: 2, revision: r.document.revision, assets: Object.fromEntries(assets.map(a => [a.id, { name: a.name, ...a.metadata, frames: a.frames, tags: a.tags }])) };

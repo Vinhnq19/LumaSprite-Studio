@@ -66,6 +66,15 @@ test('Terrain + Map: native material -> preview -> new atlas -> cross-chunk stro
 test('Map: partial stroke repaint and erase match a full viewport repaint before commit', async ({ page }) => {
   const d = await seed(page); await atlas(page, d); await map(page); await tile48(page); await page.locator('#map-grid').uncheck();
   const canvas = page.locator('#map-canvas');
+  await canvas.evaluate((element: HTMLCanvasElement) => {
+    element.dataset.observedPartialPaints = '0';
+    new MutationObserver(() => {
+      if (element.dataset.paintKind === 'partial') {
+        element.dataset.observedPartialPaints = String(Number(element.dataset.observedPartialPaints) + 1);
+      }
+    }).observe(element, { attributes: true, attributeFilter: ['data-paint-kind'] });
+  });
+  const partialPaints = async () => Number(await canvas.getAttribute('data-observed-partial-paints'));
   const hash = () => canvas.evaluate(async (c: HTMLCanvasElement) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data))).join(','));
   async function fullWithSameGrid() {
     for (const checked of [true, false]) {
@@ -78,9 +87,17 @@ test('Map: partial stroke repaint and erase match a full viewport repaint before
   for (const tool of ['pen', 'erase']) {
     await page.locator(`[data-map-tool=${tool}]`).click();
     const start = await point(page, 2, 1), end = await point(page, 5, 1);
-    await page.mouse.move(start.x, start.y); await page.mouse.down(); await expect(canvas).toHaveAttribute('data-paint-kind', 'partial');
+    const expected = tool === 'pen' ? [51, 136, 68, 255] : [0, 0, 0, 0];
+    await page.mouse.move(start.x, start.y);
+    const beforeStart = await partialPaints();
+    await page.mouse.down();
+    await expect.poll(partialPaints).toBeGreaterThan(beforeStart);
+    await expect.poll(() => pixel(page, 2, 1)).toEqual(expected);
+    const beforeEnd = await partialPaints();
     await page.mouse.move(end.x, end.y);
-    await expect(canvas).toHaveAttribute('data-paint-kind', 'partial'); const incremental = await hash();
+    await expect.poll(partialPaints).toBeGreaterThan(beforeEnd);
+    await expect.poll(() => pixel(page, 5, 1)).toEqual(expected);
+    const incremental = await hash();
     await fullWithSameGrid(); expect(await hash()).toBe(incremental); await page.mouse.up();
     await expect(canvas).toHaveAttribute('data-paint-kind', 'full');
   }

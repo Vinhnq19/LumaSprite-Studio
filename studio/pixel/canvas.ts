@@ -1,7 +1,7 @@
 import { Session } from './session.ts';
 import { celFor, composite, isLocked, over, type PixelDocument } from '../../src/studio/pixel/model.ts';
 import { brush, line, shape, region, rectangle, combineSelection, copySelection, transformClipboard, type Brush, type Point, type Clipboard } from '../../src/studio/pixel/tools.ts';
-import { Img } from '../../src/core/image.ts';
+import { Img } from '../../src/studio/raster.ts';
 
 export type Tool = 'pen' | 'erase' | 'fill' | 'pick' | 'line' | 'rect' | 'ellipse' | 'select' | 'wand' | 'move' | 'hand';
 export class PixelCanvas {

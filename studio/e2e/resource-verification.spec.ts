@@ -50,22 +50,3 @@ test('Resource verification: native paint, reload and project copy preserve lazy
   expect(copiedResource.ok()).toBeTruthy();
   expect(Array.from(wireParse(await copiedResource.text()).data)).toEqual(Array.from(source));
 });
-
-test('Resource verification: asset-version selector follows the selected apply mode', async ({ page }) => {
-  await page.goto('/');
-  await page.locator('#new-project').click();
-  await page.locator('#new-name').fill('Chế độ áp dụng');
-  await page.locator('#create-form').getByRole('button', { name: 'Tạo', exact: true }).click();
-  await expect(page.locator('#canvas')).toBeVisible();
-  await page.locator('#ai-open').click();
-  await page.locator('#ai-prompt').fill('Một vật phẩm kiểm tra chế độ áp dụng');
-  await page.locator('#ai-generate').click();
-  await expect(page.locator('.candidate-card[data-index="2"] .card-status')).toHaveText('Sẵn sàng', { timeout: 20000 });
-  await expect(page.locator('#proposal-apply')).toBeEnabled();
-  await expect(page.locator('#proposal-mode-new')).toBeChecked();
-  await expect(page.locator('#proposal-version-target-row')).toBeHidden();
-  await page.locator('#proposal-mode-version').check();
-  await expect(page.locator('#proposal-version-target-row')).toBeVisible();
-  await page.locator('#proposal-mode-new').check();
-  await expect(page.locator('#proposal-version-target-row')).toBeHidden();
-});

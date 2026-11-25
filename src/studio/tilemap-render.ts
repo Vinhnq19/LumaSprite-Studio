@@ -1,4 +1,4 @@
-import { Img } from '../core/image.ts';
+import { Img } from './raster.ts';
 import { composite, over, type PixelDocument } from './pixel/model.ts';
 import { MapStroke, getMap } from './map-commands.ts';
 import { type TerrainTileset } from './tilemaps.ts';

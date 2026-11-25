@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const [major, minor] = process.versions.node.split('.').map(Number);
-if (major < 22 || major === 22 && minor < 15) {
+if (major < 22 || major === 22 && minor < 18) {
   console.error('Can Node.js 22.18 tro len.');
   process.exit(1);
 }
@@ -17,7 +17,7 @@ if (!existsSync(join(root, 'dist/studio/index.html'))) {
 
 const args = process.argv.slice(2);
 const openBrowser = process.platform === 'win32' && !args.includes('--no-browser');
-const child = spawn(process.execPath, ['bin/pxl.js', 'studio', ...args.filter(arg => arg !== '--no-browser')], {
+const child = spawn(process.execPath, ['bin/lumasprite.js', 'studio', ...args.filter(arg => arg !== '--no-browser')], {
   cwd: root,
   stdio: ['ignore', 'pipe', 'inherit'],
   windowsHide: true,

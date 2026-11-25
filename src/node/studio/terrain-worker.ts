@@ -5,10 +5,9 @@ import { assembleTerrain, terrainEdgeDifferences, TERRAIN_BITS, type TerrainAsse
 import { mapId, mapName, validateMapChunk, type TerrainTileset } from '../../studio/tilemaps.ts';
 import { getMap } from '../../studio/map-commands.ts';
 import { newAsset, celFor, composite, wireStringify, type PixelDocument } from '../../studio/pixel/model.ts';
-import { imageSource } from '../../studio/pixel/processing.ts';
-import { encodePng } from '../png.ts';
+import { encodePng } from './png.ts';
 import { zipFiles } from './zip.ts';
-import type { ExportResult } from './render.ts';
+import type { ExportResult } from './render-result.ts';
 
 export type TerrainRequest = { mode: 'terrain'; root: string; projectId: string; revision: number; rejectExternalEdits?: boolean } & (
   { operation: 'assemble'; assetId: string; frameId: string; name: string; options: TerrainAssembly }
@@ -60,7 +59,6 @@ export function terrainRequest(r: TerrainRequest): ExportResult {
     const atlas = assembleTerrain(composite(source, r.frameId).data, r.options), asset = newAsset(name, atlas.w, atlas.h);
     asset.palette = atlas.palette;
     celFor(asset, asset.layers[0].id, asset.frames[0].id, true)!.data = atlas.data;
-    asset.source = { entry: 'art.px.js', files: { 'art.px.js': imageSource(name, atlas.w, atlas.h, [atlas.data], [100], true) } };
     const size = r.options.tileSize;
     const sample = composite(source, r.frameId).data;
     const differences = terrainEdgeDifferences(sample, size);

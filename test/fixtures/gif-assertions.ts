@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-/** Decode the global-palette, full-frame GIFs written by pxl. */
+/** Decode the global-palette, full-frame GIFs exported from Studio. */
 export function decodeTestGif(buffer: Buffer) {
   assert.equal(buffer.toString('ascii', 0, 6), 'GIF89a');
   const w = buffer.readUInt16LE(6), h = buffer.readUInt16LE(8), flags = buffer.readUInt8(10);

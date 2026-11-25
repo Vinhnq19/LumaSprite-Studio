@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { Img } from '../../core/image.ts';
-import { encodePng } from '../png.ts';
+import { Img } from '../../studio/raster.ts';
+import { encodePng } from './png.ts';
 import { getAssetLibraryInfo } from '../../studio/asset-library.ts';
 import { getMap } from '../../studio/map-commands.ts';
 import { composite, playback, wireStringify, type PixelAsset, type PixelDocument } from '../../studio/pixel/model.ts';
@@ -12,7 +12,7 @@ import { exportPixel } from './pixel-render.ts';
 import { terrainRequest } from './terrain-worker.ts';
 import { zipFiles } from './zip.ts';
 import { StudioError } from './store.ts';
-import type { ExportResult } from './render.ts';
+import type { ExportResult } from './render-result.ts';
 
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value, null, 2));

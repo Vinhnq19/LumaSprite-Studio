@@ -59,7 +59,7 @@ test('Terrain HTTP: local job -> PNG preview -> explicit new tileset -> exact po
   for (let y = 0; y < 16; y++) for (let x = 0; x < 32; x++) assert.equal(flat.data[y * 32 + x], x < 16 ? 0x338844ff : 0);
   const json = JSON.parse((await binary('terrain/map-export', { revision: saved.revision, mapId: 'summer', format: 'json' })).toString('utf8'));
   assert.deepEqual(json, portable); assert.deepEqual(decodeTestPng(zipped[`tilesets/${applied.tilesetId}/image.png`]), png);
-  const jobs = await call('ai'); assert.equal(jobs.length, 0, 'Local processing makes no AI job');
+  await call('ai', undefined, 404);
 }));
 
 test('Terrain HTTP: invalid inputs/Origin, changed revision, canceled or closed proposal never apply', async () => fixture(async ({ store, doc, origin, call }) => {

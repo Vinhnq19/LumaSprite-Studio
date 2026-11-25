@@ -1,38 +1,27 @@
 import './style.css';
+import logo from '../../docs/brand/lumasprite.png';
 import { sampleMotionPlayback } from '../../src/studio/quality/playback.ts';
-import { setupAnimationEditor } from './animation.ts';
-import { setupRegionEditor } from './region-edit.ts';
-import type { VariantPreview } from '../../src/studio/variants.ts';
-import { setupPromptLibrary } from './prompt-library.ts';
-import { renderProposalPreview, zoomProposal } from './proposal-preview.ts';
 import { setupAppearance } from './appearance.ts';
 import { setupLayout } from './layout.ts';
 import { defaultPalette } from '../../src/studio/pixel/palette.ts';
 import { Session, api } from './session.ts';
 import { PixelCanvas, type Tool } from './canvas.ts';
 import { Timeline } from './timeline.ts';
+import { readStudioPng } from './read-png.ts';
 import { Commands, bindingErrors, reserved, type Bindings } from '../../src/studio/pixel/commands.ts';
 import { newAsset, newDocument, celFor, composite, resizeAsset, mergeDown, presets, uid, playback, playbackTag, isLocked, validateDocument, wireParse, wireStringify, type PixelAsset, type PixelDocument } from '../../src/studio/pixel/model.ts';
-import { parseHex, toHex } from '../../src/core/color.ts';
-import type { GenerationContext, GenerationReport, GenerationOptions, AnimationOptions } from '../../src/studio/types.ts';
-import { GenerationWorkspaceController } from './generation-workspace.ts';
-import { QualityWorkspaceController } from './quality-workspace.ts';
-import { selectionBounds } from '../../src/studio/pixel/tools.ts';
-import { QualitySourceReviewController } from './quality-source-review.ts';
-import { RigEditorController } from './rig-editor.ts';
-import { snapshot } from '../../src/studio/pixel/history.ts';
+import { parseHex, toHex } from '../../src/studio/raster.ts';
 import { renderAssetLibraryPanel } from './asset-library-panel.ts';
 import { removeAssetLibraryAndReferences } from '../../src/studio/asset-library.ts';
-import { CharacterEditorController } from './character-editor.ts';
-import { ClipEditorController } from './clip-editor.ts';
 import { assertAtlasMutationAllowed } from '../../src/studio/tilemaps.ts';
 import { TerrainEditorController } from './terrain-editor.ts';
 import { MapEditorController } from './map-editor.ts';
 import { ProductionWorkspace } from './production-workspace.ts';
+import { ExternalEnginePanel } from './external-engine-panel.ts';
 
 document.querySelector('#app')!.innerHTML = `
-<header><a class="brand" href="/" aria-label="LumaSprite Studio">LumaSprite <span>STUDIO</span></a><span class="badge">PIXEL EDITOR</span><span id="project-title">Xưởng pixel của bạn</span><span class="grow"></span><span id="save-status" role="status">Chọn hoặc tạo dự án</span><button data-command="file.save">Lưu</button><button id="command-search">Tìm lệnh /</button><button id="shortcuts">Phím tắt</button><a href="/legacy.html">Mã & dự án cũ ↗</a></header>
-<nav><button id="new-project" class="primary">+ Dự án pixel</button><select id="projects" aria-label="Dự án"><option value="">Chọn dự án…</option></select><button id="new-asset">+ Asset</button><button id="rename-asset">Đổi tên asset</button><button id="delete-asset">Xóa asset</button><button id="character-editor-open">Nhân vật</button><button id="ai-workspace-open">✨ AI (3 phương án)</button><label class="button">Nhập PNG<input id="png-input" type="file" accept="image/png" hidden></label><label class="button">Mở sao lưu<input id="project-import" type="file" webkitdirectory multiple hidden></label><button id="legacy-import">Từ dự án mã</button><button id="history">Lịch sử</button><button id="backup">Sao lưu ZIP</button><button id="copy-project">Lưu bản sao</button><button id="draft">Khôi phục bản nháp</button><button id="reload">Tải lại</button></nav>
+<header><a class="brand" href="/" aria-label="LumaSprite Studio"><img alt="" src="${logo}">LumaSprite <span>STUDIO</span></a><span class="badge">PIXEL EDITOR</span><span id="project-title">Xưởng pixel của bạn</span><span class="grow"></span><span id="save-status" role="status">Chọn hoặc tạo dự án</span><button data-command="file.save">Lưu</button><button id="command-search">Tìm lệnh /</button><button id="shortcuts">Phím tắt</button></header>
+<nav><button id="new-project" class="primary">+ Dự án pixel</button><select id="projects" aria-label="Dự án"><option value="">Chọn dự án…</option></select><button id="new-asset">+ Asset</button><button id="rename-asset">Đổi tên asset</button><button id="delete-asset">Xóa asset</button><button id="ai-workspace-open">External Engine</button><label class="button">Nhập PNG<input id="png-input" type="file" accept="image/png" hidden></label><label class="button">Mở sao lưu<input id="project-import" type="file" webkitdirectory multiple hidden></label><button id="history">Lịch sử</button><button id="backup">Sao lưu ZIP</button><button id="copy-project">Lưu bản sao</button><button id="draft">Khôi phục bản nháp</button><button id="reload">Tải lại</button></nav>
 <div id="notice" role="alert" hidden></div>
 <div class="workspace"><aside class="tools-panel"><div id="tools" role="group" aria-label="Dụng cụ pixel"></div><hr><button data-command="edit.undo" aria-label="Hoàn tác">↶</button><button data-command="edit.redo" aria-label="Làm lại">↷</button><hr><div class="asset-list-header"><h2>Asset</h2><button id="asset-add" title="Thêm asset" aria-label="Thêm asset">+</button></div><div id="asset-list"></div><small id="asset-status" role="status"></small></aside>
 <main><div class="canvas-toolbar"><div class="canvas-context"><strong id="asset-info">Bắt đầu bằng canvas 18×18, 64×64 hoặc kích thước bất kỳ</strong><span id="edit-target"></span></div><span class="grow"></span><button id="canvas-resize">Canvas…</button><button id="image-scale">Co giãn ảnh…</button><button id="zoom-out" aria-label="Thu nhỏ" title="Ctrl + cuộn để thu hoặc phóng">−</button><span id="zoom-value">800%</span><button id="zoom-in" aria-label="Phóng to" title="Ctrl + cuộn để thu hoặc phóng">+</button><button id="fit">Vừa khung</button><button id="actual" aria-label="Xem 100%">100%</button><label><input id="grid" type="checkbox" checked>Lưới</label><label>Ô <input id="cell-grid" type="number" min="0" max="4096" value="0"></label><button id="inspector-toggle" type="button" aria-controls="properties" aria-expanded="true">Bảng chỉnh sửa</button></div>
@@ -47,7 +36,7 @@ document.querySelector('#app')!.innerHTML = `
 <section><h2>Vùng chọn</h2><div class="row wrap"><button data-command="edit.cut">Cắt</button><button data-command="edit.copy">Copy</button><button data-command="edit.paste">Dán</button><button data-command="selection.all">Chọn hết</button><button data-command="selection.clear">Bỏ chọn</button><button id="flip-x">Lật X</button><button id="flip-y">Lật Y</button><button id="rotate">Xoay 90°</button><button id="confirm-float">Áp dụng Enter</button><button id="cancel-float">Hủy Esc</button></div></section>
 <section><h2>Xuất asset</h2><div class="row wrap"><button data-export="png">PNG</button><button data-export="gif">GIF</button><button data-export="strip">Strip + JSON</button><button data-export="atlas">Atlas + JSON</button><button data-export="zip">ZIP asset đã chọn</button><button id="atlas-preview">Xem atlas</button></div><small>Chọn checkbox cạnh asset để xuất nhiều. GIF/strip dùng tag đang chọn.</small></section>
 <section><details><summary>Thuộc tính game</summary><textarea id="metadata" rows="5" aria-label="Metadata game"></textarea><button id="metadata-save">Lưu pivot / hitbox / event</button></details></section>
-<section><button id="ai-open" class="primary" type="button" style="width:100%">✨ Không gian tạo AI (3 phương án)…</button></section></aside></div>
+<section><button id="ai-open" class="primary" type="button" style="width:100%">External Engine…</button></section></aside></div>
 <dialog id="create-dialog"><form id="create-form"><h2 id="create-title">Tạo dự án pixel</h2><label>Tên<input id="new-name" required maxlength="100" value="Dự án pixel"></label><label>Preset<select id="size-preset">${presets.map(n => `<option value="${n}" ${n === 32 ? 'selected' : ''}>${n} × ${n}</option>`).join('')}<option value="custom">Tùy chỉnh</option></select></label><div class="row"><label>Rộng<input id="new-width" type="number" min="1" max="4096" value="32" required></label><label>Cao<input id="new-height" type="number" min="1" max="4096" value="32" required></label></div><label><input id="size-lock" type="checkbox">Khóa tỉ lệ</label><label><input id="transparent" type="checkbox" checked>Nền trong suốt</label><label>Màu nền<input id="new-background" type="color" value="#ffffff"></label><div class="row"><button type="button" data-close>Hủy</button><button type="submit" class="primary">Tạo</button></div></form></dialog>
 <dialog id="resize-dialog"><form id="resize-form"><h2 id="resize-title">Đổi kích thước canvas</h2><div class="row"><label>Rộng<input id="resize-width" type="number" min="1" max="4096" required></label><label>Cao<input id="resize-height" type="number" min="1" max="4096" required></label></div><label><input id="resize-lock" type="checkbox">Khóa tỉ lệ</label><div id="anchor-grid">${[0, .5, 1].flatMap(y => [0, .5, 1].map(x => `<button type="button" data-anchor="${x},${y}" class="${x === .5 && y === .5 ? 'selected' : ''}">${x === .5 && y === .5 ? '●' : '·'}</button>`)).join('')}</div><p id="resize-description"></p><canvas id="resize-preview" width="240" height="180"></canvas><small>Vùng đỏ nằm ngoài canvas mới sẽ bị cắt; có thể hoàn tác. Pivot ngoài canvas sẽ được giới hạn về mép gần nhất.</small><div class="row"><button type="button" data-close>Hủy</button><button type="submit" class="primary">Áp dụng</button></div></form></dialog>
 <dialog id="shortcut-dialog"><h2>Phím tắt</h2><p>Alt: lấy màu tạm · Space: kéo canvas tạm. Không áp dụng khi nhập văn bản.</p><div class="row"><select id="shortcut-preset"><option value="aseprite">Gần Aseprite</option><option value="studio">Studio hiện tại</option></select><button id="shortcut-defaults">Khôi phục preset</button><button id="shortcut-export">Xuất JSON</button><label class="button">Nhập JSON<input id="shortcut-import" type="file" accept="application/json" hidden></label></div><input id="shortcut-filter" placeholder="Tìm lệnh/phím…" aria-label="Tìm phím tắt"><p class="hint" id="reserved"></p><div id="shortcut-list"></div><p id="shortcut-errors" role="alert"></p><div class="row"><button data-close>Đóng</button><button id="shortcut-save" class="primary">Lưu cấu hình</button></div></dialog>
@@ -55,7 +44,10 @@ document.querySelector('#app')!.innerHTML = `
 <dialog id="tag-dialog"><form id="tag-form"><h2>Tag animation</h2><select id="tag-list"><option value="">+ Tag mới</option></select><label>Tên<input id="tag-name" required maxlength="100"></label><div class="row"><label>Từ<select id="tag-from"></select></label><label>Đến<select id="tag-to"></select></label></div><label>Hướng<select id="tag-direction"><option value="forward">Xuôi</option><option value="reverse">Ngược</option><option value="ping-pong">Ping-pong</option></select></label><label><input id="tag-loop" type="checkbox" checked>Lặp</label><div class="row"><button type="button" data-close>Đóng</button><button type="button" id="tag-delete">Xóa tag</button><button type="submit" class="primary">Lưu tag</button></div></form></dialog>
 <dialog id="import-dialog"><form id="import-form"><h2>Nhập PNG / sprite sheet</h2><p id="import-info"></p><label>Tên asset<input id="import-name" required maxlength="100"></label><label><input id="import-sheet" type="checkbox">Cắt thành các frame</label><div class="row"><label>Rộng ô<input id="import-width" type="number" min="1" max="4096" required></label><label>Cao ô<input id="import-height" type="number" min="1" max="4096" required></label></div><div class="row"><label>Lề ngoài<input id="import-margin" type="number" min="0" value="0"></label><label>Khoảng cách<input id="import-spacing" type="number" min="0" value="0"></label></div><label>Thứ tự<select id="import-order"><option value="rows">Theo hàng</option><option value="columns">Theo cột</option></select></label><p>Frame mới có duration 100 ms; có thể sửa trên timeline.</p><div class="row"><button type="button" data-close>Hủy</button><button type="submit" class="primary">Nhập ảnh</button></div></form></dialog>
 <dialog id="history-dialog"><h2>Lịch sử phục hồi</h2><div id="history-list"></div><button data-close>Đóng</button></dialog>
-<dialog id="legacy-dialog"><h2>Tạo bản pixel từ dự án mã</h2><p>Nguồn và dự án cũ được giữ nguyên.</p><select id="legacy-projects" aria-label="Dự án mã"></select><select id="legacy-assets" aria-label="Asset mã"></select><div class="row"><button data-close>Đóng</button><button id="legacy-convert" class="primary">Tạo bản pixel</button></div></dialog>
+<dialog id="generation-workspace" class="large-workspace" aria-labelledby="external-engine-title">
+  <div class="workspace-header"><h2 id="external-engine-title">External Engine</h2><button id="ai-close" type="button">Về Pixel Editor</button></div>
+  <div id="external-engine-panel"></div>
+</dialog>
 <dialog id="onion-dialog"><h2>Onion-skin</h2><label>Frame trước<input id="onion-before" type="number" min="0" max="8" value="1"></label><label>Frame sau<input id="onion-after" type="number" min="0" max="8" value="1"></label><label>Độ mờ<input id="onion-opacity" type="range" min="0" max="100" value="25"></label><div class="row"><input id="onion-prev-color" type="color" value="#ff6677" aria-label="Màu frame trước"><input id="onion-next-color" type="color" value="#66bbff" aria-label="Màu frame sau"></div><button data-close>Đóng</button></dialog>
 <dialog id="atlas-dialog"><h2>Preview atlas</h2><p id="atlas-info"></p><div class="atlas-stage"><img id="atlas-image" alt="Atlas pixel"></div><button id="atlas-download">Tải PNG/JSON cùng revision</button><button data-close>Đóng</button></dialog>`;
 
@@ -95,187 +87,76 @@ async function writeRevision(path: string, value: Record<string, unknown>): Prom
   catch (e) { expectedWrites.delete(key); if ((e as any).status === 409 && session.doc?.id === id) session.conflict = true; throw e; }
 }
 
-async function prepareAi(): Promise<void> {
+async function prepareEdit(): Promise<void> {
   painter.confirm();
   await session.loadFrame();
   await session.flush();
 }
 
-// Construct generation workspace controller (this renders dialog DOM and its internal VariantPreviewController)
-const workspace = new GenerationWorkspaceController(
-  session,
-  async (saved, historyLabel) => {
-    if (historyLabel) {
-      await receiveQualityDocument(saved, undefined, undefined, historyLabel, false);
-      return;
-    }
-    await openProject(saved.id);
-    session.assetId = saved.assets.at(-1)!.id;
-    session.normalize();
-    await session.loadFrame();
-    render();
-    painter.fit(true);
-  },
-  projectLock,
-  writeRevision,
-  prepareAi,
-  error,
-  () => painter.selection,
-);
-
-async function receiveQualityDocument(saved: PixelDocument, assetId?: string, frameId?: string, historyLabel?: string, qualityApproval = true): Promise<void> {
-  if (session.doc?.id !== saved.id || session.dirty || session.conflict) throw new Error('Dự án đã đổi; giữ bản nháp và tải lại trước khi nhận kết quả.');
-  if (historyLabel) {
-    const before = snapshot(session.doc);
-    // Extension upgrades persist; undo changes the working copy, not server approval authority.
-    if (qualityApproval) before.studio = { ...before.studio, version: 2, quality: saved.studio!.quality, resources: before.studio?.resources ?? {}, rigDrafts: before.studio?.rigDrafts ?? {} };
-    else if (!before.studio && saved.studio) before.studio = { version: saved.studio.version };
-    for (const a of saved.assets) for (const c of Object.values(a.cels)) {
-      const old = session.doc.assets.find(x => x.id === a.id)?.cels[c.id];
-      if (old?.blob === c.blob && old?.data) c.data = old.data;
-    }
-    for (const [id, r] of Object.entries(saved.studio?.resources ?? {})) {
-      const old = session.doc.studio?.resources?.[id];
-      if (old?.blob === r.blob && old?.data) r.data = old.data;
-    }
-    session.history.commit(before, saved, historyLabel);
-  } else session.history.clear();
-  session.doc = saved; session.version++;
-  session.assetId = assetId ?? saved.assets.at(-1)!.id; session.layerId = ''; session.frameId = frameId ?? '';
-  session.normalize(); await session.loadFrame(); render(); painter.fit(true); renderEditTarget(); session.onstatus(`Đã lưu · r${saved.revision}`); await listProjects(saved.id);
-}
-const qualityOptions = { session, prepare: async () => { stop(); await prepareAi(); }, writeRevision, onSaved: receiveQualityDocument, projectLock, onError: error };
-const qualitySource = new QualitySourceReviewController(qualityOptions);
-const qualityWorkspace = new QualityWorkspaceController({ ...qualityOptions, onMotionSource: () => qualitySource.open(), sourceRegion: () => {
-  const mask = painter.selection, asset = session.asset;
-  if (!mask || !asset || mask.length !== asset.w * asset.h) return;
-  const region = selectionBounds(mask, asset.w);
-  if (region && mask.reduce((count, pixel) => count + Number(!!pixel), 0) === region.w * region.h) return region;
-} });
-async function navigateRig(assetId: string, frameId: string, layerId = ''): Promise<void> {
+async function openAssetFrame(assetId: string, frameId: string, layerId = ''): Promise<void> {
   painter.cancel(); session.assetId = assetId; session.frameId = frameId; session.layerId = layerId;
   session.normalize(); await session.loadFrame(); render(); painter.fit(true); renderEditTarget();
 }
-const rigEditor = new RigEditorController({ ...qualityOptions, navigate: navigateRig,
-  onDrawLayer: async (asset, frame, layer) => { await navigateRig(asset, frame, layer); commands.execute('tool.pen'); },
-  onReview: async draft => {
-    await navigateRig(draft.rig.source.assetId, draft.rig.source.frameId);
-    const approval = await qualitySource.open({ version: 1, recipe: draft.recipe, rig: draft.rig, plan: draft.plan, resources: draft.resources, movementMaskResourceId: draft.movementMaskResourceId, frozenFrames: draft.frozenFrames });
-    if (approval) await qualityWorkspace.openForApproval(approval);
-  },
-});
-const rigButton = document.createElement('button'); rigButton.id = 'rig-open'; rigButton.type = 'button'; rigButton.dataset.command = 'rig.open'; rigButton.textContent = 'Dựng rig (thử nghiệm)';
-document.querySelector('nav')!.append(rigButton);
-const qualityButton = document.createElement('button'); qualityButton.id = 'quality-open'; qualityButton.type = 'button'; qualityButton.dataset.command = 'quality.open'; qualityButton.textContent = 'Chất lượng (thử nghiệm)';
-document.querySelector('nav')!.append(qualityButton);
-const qualityMode = document.createElement('button'); qualityMode.id = 'quality-from-ai'; qualityMode.type = 'button'; qualityMode.textContent = 'Chế độ chất lượng';
-document.querySelector('#generation-workspace .workspace-modes')!.append(qualityMode);
-qualityMode.onclick = safe(async () => { workspace.close(); await qualityWorkspace.open(); });
 
-// Now that prompt-library host DOM exists inside workspace dialog, construct promptLibrary
-const promptLibrary = setupPromptLibrary(() => session.asset);
+const engineDialog = $<HTMLDialogElement>('generation-workspace');
+const engineClose = $<HTMLButtonElement>('ai-close');
+const engine = new ExternalEnginePanel($('external-engine-panel'), session, prepareEdit,
+  () => painter.selection, writeRevision, async saved => {
+    const current = session.doc;
+    if (current?.id !== saved.id || session.dirty || session.conflict) throw new Error('Dự án đã đổi; tải lại trước khi nhận kết quả.');
+    const before = session.begin()!;
+    if (!before.studio && saved.studio) before.studio = { version: saved.studio.version };
+    for (const asset of saved.assets) for (const cel of Object.values(asset.cels)) {
+      const old = current.assets.find(item => item.id === asset.id)?.cels[cel.id];
+      if (old?.blob === cel.blob && old?.data) cel.data = old.data;
+    }
+    for (const [id, resource] of Object.entries(saved.studio?.resources ?? {})) {
+      const old = current.studio?.resources?.[id];
+      if (old?.blob === resource.blob && old?.data) resource.data = old.data;
+    }
+    session.history.commit(before, saved, 'Áp dụng External Engine');
+    session.doc = saved;
+    session.version++;
+    const asset = saved.assets.at(-1)!;
+    await openAssetFrame(asset.id, asset.frames[0].id);
+    session.onstatus(`Đã lưu · r${saved.revision}`);
+    engineDialog.close();
+  }, applying => { engineClose.disabled = applying; });
+engineDialog.addEventListener('close', () => engine.hide());
+engineDialog.addEventListener('cancel', event => { if (engineClose.disabled) event.preventDefault(); });
+bind('ai-close', () => { if (!engineClose.disabled) engineDialog.close(); });
+async function openEngine() {
+  if (!session.doc) return;
+  stop();
+  await prepareEdit();
+  engineDialog.showModal();
+  await engine.show();
+}
+bind('ai-open', openEngine);
+bind('ai-workspace-open', openEngine);
 
-setupAnimationEditor({
-  context: () => session.asset && session.doc ? { asset: session.asset, frameId: session.frameId, revision: session.doc.revision, mask: painter.selection } : undefined,
-  prepare: prepareAi,
-  start: (animation, motion) => workspace.startBatch({ animation, motion }),
-  normalizeReference,
-  onerror: error,
-});
-
-const regionEditor = setupRegionEditor({
-  context: () => session.asset && session.doc ? {
-    projectId: session.doc.id,
-    asset: session.asset,
-    frameId: session.frameId,
-    revision: session.doc.revision,
-    mask: painter.selection,
-  } : undefined,
-  prepare: prepareAi,
-  start: (opts) => workspace.startBatch(opts),
-  normalizeReference,
-  onerror: error,
-  isLocked: () => workspace.isLocked(),
-  isParentOpen: () => workspace.isOpen,
-});
-workspace.onClose = () => regionEditor.reset();
-
-bind('ai-open', () => { qualityWorkspace.close(); workspace.open(); });
-bind('ai-workspace-open', () => { qualityWorkspace.close(); workspace.open(); });
-
-const characterEditor = new CharacterEditorController({
-  session,
-  prepare: async () => {
-    painter.confirm();
-    await session.loadFrame();
-    await session.flush();
-  },
-  getSelectionContext: () => {
-    const asset = session.asset;
-    return {
-      assetId: session.assetId,
-      frameId: session.frameId,
-      w: asset?.w ?? 0,
-      h: asset?.h ?? 0,
-      selection: painter.selection,
-    };
-  },
-  navigateToSource: async (assetId: string, frameId: string) => {
-    painter.confirm();
-    session.assetId = assetId;
-    session.frameId = frameId;
-    session.normalize();
-    await session.loadFrame();
-    render();
-    painter.fit(true);
-  },
-  onError: error,
-  onStatus: (msg: string) => {
-    $('save-status').textContent = msg;
-  },
-});
-bind('character-editor-open', () => characterEditor.open());
-const clipEditor = new ClipEditorController({
-  session,
-  prepare: prepareAi,
-  getSelectionContext: () => ({ assetId: session.assetId, frameId: session.frameId,
-    w: session.asset?.w ?? 0, h: session.asset?.h ?? 0, selection: painter.selection }),
-  navigateToSource: async (assetId, frameId) => {
-    painter.confirm(); session.assetId = assetId; session.frameId = frameId; session.normalize();
-    await session.loadFrame(); render(); painter.fit(true); renderEditTarget();
-  },
-  start: async options => { workspace.artForm.loadFromDoc(false); await workspace.startBatch(options); },
-  onError: error,
-});
-const clipOpenButton = document.createElement('button');
-clipOpenButton.id = 'clip-editor-open'; clipOpenButton.textContent = 'Animation nhân vật';
-clipOpenButton.disabled = !session.doc;
-$('character-editor-open').after(clipOpenButton);
-bind('clip-editor-open', () => clipEditor.open());
-workspace.onEditClip = id => clipEditor.open(undefined, id);
-const mapEditor = new MapEditorController({ session, prepare: prepareAi, error });
+const mapEditor = new MapEditorController({ session, prepare: prepareEdit, error });
 const production = new ProductionWorkspace({
   session,
-  prepare: async () => { stop(); await prepareAi(); },
+  prepare: async () => { stop(); await prepareEdit(); },
   openAsset: async id => {
     const asset = session.doc?.assets.find(value => value.id === id);
-    if (asset) { timeline.clear(); await navigateRig(id, asset.frames[0].id); }
+    if (asset) { timeline.clear(); await openAssetFrame(id, asset.frames[0].id); }
   },
   openMap: id => mapEditor.open(id),
 });
-const terrainEditor = new TerrainEditorController({ session, prepare: prepareAi, error, write: writeRevision, applied: async assetId => {
+const terrainEditor = new TerrainEditorController({ session, prepare: prepareEdit, error, write: writeRevision, applied: async assetId => {
   const id = session.doc?.id; if (!id) return;
   await openProject(id); session.assetId = assetId; session.normalize(); await session.loadFrame(); render(); painter.fit(true); renderEditTarget();
 } });
 for (const [id, label, action] of [['terrain-editor-open', 'Tileset từ vật liệu', () => terrainEditor.open()], ['map-editor-open', 'Bản đồ', () => mapEditor.open()], ['production-open', 'Sản xuất', () => production.open()]] as const) {
   const button = document.createElement('button'); button.id = id; button.textContent = label; button.disabled = !session.doc;
-  clipOpenButton.after(button); bind(id, action);
+  $('ai-workspace-open').after(button); bind(id, action);
 }
-workspace.onTileset = () => terrainEditor.open();
 
 const selectionReset = document.createElement('button'); selectionReset.id = 'deselect'; selectionReset.dataset.command = 'selection.clear'; selectionReset.textContent = 'Bỏ chọn'; selectionReset.hidden = true; document.querySelector('.canvas-toolbar')!.append(selectionReset);
 let creatingAsset = false, resizing: 'canvas' | 'scale' = 'canvas', anchorX = .5, anchorY = .5, playing = false, playTimer: ReturnType<typeof setTimeout>, playTicket = 0;
-let selectedAssets = new Set<string>(), proposalId = '', proposalAssets: PixelAsset[] = [];
+const selectedAssets = new Set<string>();
 let imported: { w: number; h: number; data: Uint32Array; name: string } | undefined, atlas: { blob: Blob; revision: number; objectUrl: string } | undefined;
 let shortcutDraft: Bindings = {}, projectList: { id: string; name: string }[] = [];
 
@@ -302,10 +183,6 @@ command('layer.add', 'Thêm layer', ['Shift+n'], () => timeline.addLayer()); com
 command('animation.play', 'Phát / dừng animation hoặc xác nhận vùng nổi', ['Enter'], () => { if (painter.floating) painter.confirm(); else void play().catch(error); });
 command('selection.cancel', 'Hủy thao tác / vùng nổi', ['Escape'], () => { if (painter.hasGesture) painter.abort(); else painter.cancel(); });
 command('command.search', 'Tìm lệnh', ['/'], () => openCommands(), () => true);
-command('quality.open', 'Chế độ chất lượng', [], async () => { workspace.close(); await qualityWorkspace.open(); });
-command('rig.open', 'Dựng bộ phận và rig', [], async () => { workspace.close(); qualityWorkspace.close(); await rigEditor.open(); });
-command('character.open', 'Nhân vật', [], () => characterEditor.open());
-command('clip.open', 'Animation nhân vật', [], () => clipEditor.open());
 command('terrain.open', 'Tileset từ vật liệu', [], () => terrainEditor.open());
 command('map.open', 'Bản đồ platformer', [], () => mapEditor.open());
 command('view.fit', 'Vừa khung', [], () => painter.fit()); command('view.actual', 'Xem 100%', [], () => painter.setZoom(1));
@@ -400,13 +277,13 @@ function render(): void {
   for (const group of a?.layers.filter(g => g.type === 'group' && g.id !== l?.id) ?? []) select('layer-parent').append(option(group.id, group.name)); select('layer-parent').value = l?.parent ?? '';
   input('duration').value = String(session.frame?.duration ?? 100); $('metadata').textContent = JSON.stringify(a?.metadata ?? {}, null, 2); $<HTMLTextAreaElement>('metadata').value = JSON.stringify(a?.metadata ?? {}, null, 2);
   const selectedTag = select('play-tag').value; select('play-tag').replaceChildren(option('', 'Tất cả frame')); for (const t of a?.tags ?? []) select('play-tag').append(option(t.id, `${t.name} · ${t.direction}${t.loop ? '' : ' · 1 lần'}`)); select('play-tag').value = a?.tags.some(t => t.id === selectedTag) ? selectedTag : '';
-  renderPalette(); renderTools(); timeline.render(); promptLibrary.update(); workspace.artForm.loadFromDoc(false); workspace.updateApplyGate(); qualityWorkspace.updateGate(); qualitySource.updateGate(); rigEditor.updateGate(); painter.draw();
+  renderPalette(); renderTools(); timeline.render(); painter.draw();
 }
 function renderPalette(): void {
   $('palette').replaceChildren(); const a = session.asset;
   (a?.palette ?? defaultPalette).forEach((color, i) => { const b = document.createElement('button'); b.style.background = toHex(color); b.title = `${toHex(color)} · kéo để sắp xếp`; b.classList.toggle('chosen', painter.color === color); b.onclick = () => { painter.color = color; colors(); renderPalette(); }; b.draggable = !!a; b.ondragstart = e => e.dataTransfer!.setData('application/pxl-color', String(i)); b.ondragover = e => e.preventDefault(); b.ondrop = e => { e.preventDefault(); const index = Number(e.dataTransfer!.getData('application/pxl-color')); if (a && Number.isInteger(index) && index >= 0 && index < a.palette.length) session.change('Sắp xếp palette', () => { const c = a.palette.splice(index, 1)[0]; a.palette.splice(i, 0, c); }); }; $('palette').append(b); });
 }
-session.onchange = () => { clipOpenButton.disabled = !session.doc; for (const id of ['terrain-editor-open', 'map-editor-open', 'production-open']) $<HTMLButtonElement>(id).disabled = !session.doc; render(); characterEditor.update(); clipEditor.update(); terrainEditor.gate(); mapEditor.update(); }; session.onstatus = text => { $('save-status').textContent = text; queueMicrotask(() => { workspace.updateApplyGate(); qualityWorkspace.updateGate(); qualitySource.updateGate(); rigEditor.updateGate(); clipEditor.updateGate(); terrainEditor.gate(); mapEditor.gate(); }); }; session.onerror = error; painter.onerror = error; painter.onchange = () => { renderTools(); $('zoom-value').textContent = `${Math.round(painter.zoom * 100)}%`; }; painter.onpick = () => { colors(); renderPalette(); }; painter.oncursor = p => $('cursor').textContent = `${p.x}, ${p.y}`;
+session.onchange = () => { for (const id of ['ai-open', 'ai-workspace-open', 'terrain-editor-open', 'map-editor-open', 'production-open']) $<HTMLButtonElement>(id).disabled = !session.doc; render(); terrainEditor.gate(); mapEditor.update(); }; session.onstatus = text => { $('save-status').textContent = text; queueMicrotask(() => { engine.refresh(); terrainEditor.gate(); mapEditor.gate(); }); }; session.onerror = error; painter.onerror = error; painter.onchange = () => { renderTools(); $('zoom-value').textContent = `${Math.round(painter.zoom * 100)}%`; }; painter.onpick = () => { colors(); renderPalette(); }; painter.oncursor = p => $('cursor').textContent = `${p.x}, ${p.y}`;
 timeline.onerror = error; timeline.beforeSelect = () => { stop(); painter.confirm(); painter.cancel(); }; timeline.onselect = () => { render(); void loadCurrent().catch(error); };
 session.onframe = () => { renderEditTarget(); painter.draw(); };
 painter.beforeEdit = stop;
@@ -425,7 +302,7 @@ async function loadCurrent(): Promise<void> {
 async function listProjects(selected = session.doc?.id): Promise<void> { projectList = await api('projects'); select('projects').replaceChildren(option('', 'Chọn dự án…')); for (const p of projectList) select('projects').append(option(p.id, p.name)); select('projects').value = selected ?? ''; }
 
 async function openProject(id: string): Promise<void> {
-  stop(); painter.confirm(); qualityWorkspace.resetProject(); qualitySource.resetProject(); rigEditor.resetProject(); workspace.resetProject(); regionEditor.reset(); characterEditor.reset(); clipEditor.reset(); terrainEditor.reset(); mapEditor.reset(); production.resetProject(); if(session.doc&&session.doc.id!==id){await session.flush();await api(`${session.path}/close`,'POST',{});} painter.reset(); timeline.clear(); selectedAssets.clear(); proposalId = ''; $('proposal').hidden = true;
+  stop(); painter.confirm(); if (engineDialog.open) engineDialog.close(); engine.hide(); terrainEditor.reset(); mapEditor.reset(); production.resetProject(); if(session.doc&&session.doc.id!==id){await session.flush();await api(`${session.path}/close`,'POST',{});} painter.reset(); timeline.clear(); selectedAssets.clear();
   projectLock(true);
   try { await session.open(id); await listProjects(id); render(); painter.fit(true); }
   finally { projectLock(false); }
@@ -546,7 +423,15 @@ async function readPng(file: File): Promise<void> {
   if (file.size > 64 * 1024 * 1024) throw new Error('PNG vượt 64 MiB.');
   const head = new Uint8Array(await file.slice(0, 24).arrayBuffer()); if (![137, 80, 78, 71, 13, 10, 26, 10].every((b, i) => head[i] === b)) throw new Error('Chọn ảnh PNG hợp lệ.');
   const v = new DataView(head.buffer), w = v.getUint32(16), h = v.getUint32(20); if (!w || !h || w > 16384 || h > 16384 || w * h > 32_000_000) throw new Error('PNG vượt giới hạn 32 triệu pixel hoặc 16384 px mỗi chiều.');
-  const img = await createImageBitmap(file, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }); const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d')!.drawImage(img, 0, 0); img.close(); const bytes = c.getContext('2d')!.getImageData(0, 0, w, h).data, data = new Uint32Array(w * h); for (let i = 0; i < data.length; i++) data[i] = ((bytes[i * 4] << 24) | (bytes[i * 4 + 1] << 16) | (bytes[i * 4 + 2] << 8) | bytes[i * 4 + 3]) >>> 0;
+  let data = await readStudioPng(file, w, h);
+  if (!data) {
+    const img = await createImageBitmap(file, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d')!; ctx.drawImage(img, 0, 0); img.close();
+    const rgba = ctx.getImageData(0, 0, w, h).data;
+    const pixels = new DataView(rgba.buffer, rgba.byteOffset, rgba.byteLength);
+    data = Uint32Array.from({ length: w * h }, (_, index) => pixels.getUint32(index * 4));
+  }
   imported = { w, h, data, name: file.name.replace(/\.png$/i, '') }; input('import-name').value = imported.name.slice(0, 100); input('import-width').value = String(Math.min(4096, w)); input('import-height').value = String(Math.min(4096, h)); input('import-sheet').checked = w > 4096 || h > 4096; $('import-info').textContent = `${file.name} · ${w} × ${h}`; show('import-dialog');
 }
 input('png-input').onchange = safe(async () => { const f = input('png-input').files?.[0]; if (f) await readPng(f); input('png-input').value = ''; });
@@ -565,7 +450,7 @@ $('import-form').onsubmit = e => { e.preventDefault(); safe(async () => {
 })(); };
 input('project-import').onchange = safe(async () => {
   const files = [...input('project-import').files ?? []], manifest = files.find(f => /(^|\/)pxl\.project\.json$/.test(f.webkitRelativePath)); if (!manifest) throw new Error('Chọn thư mục sao lưu đã giải nén, có pxl.project.json.');
-  const envelope = JSON.parse(await manifest.text()), d = envelope.document as PixelDocument; if (!d || d.schemaVersion !== 2) throw new Error('Dự án v1 mở bằng Mã & dự án cũ.');
+  const envelope = JSON.parse(await manifest.text()), d = envelope.document as PixelDocument; if (!d || d.schemaVersion !== 2) throw new Error('Bản này chỉ mở bản sao lưu Pixel v2. Hãy xuất PNG hoặc chuyển đổi bằng phiên bản Studio cũ trước.');
   const history = await Promise.all(files.filter(f => /\/\.pxl\/pixel-history\/[\w-]+\.json$/.test(f.webkitRelativePath)).slice(-20).map(async f => JSON.parse(await f.text())));
   const blobs: Record<string, string> = {}; for (const file of files.filter(f => /\/\.pxl\/cels\/[a-f0-9]{64}\.rgba\.z$/.test(f.webkitRelativePath))) { const digest = file.name.slice(0, 64), data = new Uint8Array(await file.arrayBuffer()); let text = ''; for (let i = 0; i < data.length; i += 8192) text += String.fromCharCode(...data.subarray(i, i + 8192)); blobs[digest] = btoa(text); }
   const resourceBlobs: Record<string, string> = {};
@@ -581,9 +466,6 @@ input('project-import').onchange = safe(async () => {
   }
   validateDocument(d); await session.flush(); const created = await api('projects', 'POST', { name: d.name, backup: { document: d, blobs, history, resourceBlobs } }); await openProject(created.id); input('project-import').value = '';
 });
-bind('legacy-import', async () => { const projects: { id: string; name: string }[] = await api('/api/studio/projects'); select('legacy-projects').replaceChildren(...projects.map(p => option(p.id, p.name))); await legacyAssets(); show('legacy-dialog'); });
-async function legacyAssets(): Promise<void> { const id = select('legacy-projects').value; select('legacy-assets').replaceChildren(option('', 'Tất cả asset')); if (!id) return; const d = await api(`/api/studio/projects/${id}`), job = await api(`/api/studio/projects/${id}/build`, 'POST', { revision: d.revision }); let status = job; while (status.status === 'running') { await new Promise(r => setTimeout(r, 150)); status = await api(`/api/studio/builds/${job.id}`); } if (status.status !== 'ready') throw new Error(status.error ?? 'Không dựng được dự án mã.'); for (const a of status.result.assets) select('legacy-assets').append(option(a.name, `${a.name} · ${a.w}×${a.h}`)); }
-select('legacy-projects').onchange = safe(legacyAssets); bind('legacy-convert', async () => { const id = select('legacy-projects').value; if (!id) return; const d = await api(`/api/studio/projects/${id}`); await session.flush(); const pixel = await api('from-legacy', 'POST', { projectId: id, revision: d.revision, name: select('legacy-assets').value || undefined }); close('legacy-dialog'); await openProject(pixel.id); });
 bind('history', async () => { if (!session.doc) return; await session.flush(); const entries: { id: string; label: string; time: string; revision: number }[] = await api(`${session.path}/history`); $('history-list').replaceChildren(); for (const h of entries) { const b = document.createElement('button'); b.textContent = `${new Date(h.time).toLocaleString('vi-VN')} · r${h.revision} · ${h.label}`; b.onclick = safe(async () => { await session.flush(); const saved = await writeRevision(`${session.path}/history`, { revision: session.doc!.revision, snapshot: h.id }); close('history-dialog'); await openProject(saved.id); }); $('history-list').append(b); } show('history-dialog'); });
 
 async function exported(format: string): Promise<Blob> { if (!session.doc) throw new Error('Tạo dự án trước khi xuất.'); painter.confirm(); await session.flush(); const r = await fetch(`/api/pixel/${session.path}/export`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ revision: session.doc.revision, format, assetId: session.assetId, frameId: session.frameId, tagId: select('play-tag').value || undefined, selected: [...selectedAssets] }) }); if (!r.ok) throw new Error((await r.json()).error); return r.blob(); }
@@ -591,44 +473,6 @@ for (const b of document.querySelectorAll<HTMLButtonElement>('[data-export]')) b
 async function zipEntry(blob: Blob, wanted: string): Promise<Blob> { const bytes = new Uint8Array(await blob.arrayBuffer()), v = new DataView(bytes.buffer); let at = 0; while (at + 30 <= bytes.length && v.getUint32(at, true) === 0x04034b50) { const length = v.getUint32(at + 18, true), nl = v.getUint16(at + 26, true), el = v.getUint16(at + 28, true), start = at + 30 + nl + el, name = new TextDecoder().decode(bytes.subarray(at + 30, at + 30 + nl)); if (name === wanted) return new Blob([bytes.slice(start, start + length)], { type: 'image/png' }); at = start + length; } throw new Error('ZIP không chứa ' + wanted); }
 bind('atlas-preview', async () => { const blob = await exported('atlas'); if (atlas) URL.revokeObjectURL(atlas.objectUrl); const objectUrl = URL.createObjectURL(await zipEntry(blob, 'image.png')); atlas = { blob, objectUrl, revision: session.doc!.revision }; $<HTMLImageElement>('atlas-image').src = objectUrl; $('atlas-info').textContent = `Atlas · revision ${atlas.revision} · tải PNG/JSON từ chính bản này`; show('atlas-dialog'); });
 bind('atlas-download', () => { if (atlas) download(atlas.blob, `atlas-r${atlas.revision}.zip`); });
-
-interface ProposalPreview { proposalId: string; assets: PixelAsset[]; quality?: GenerationReport; generation?: GenerationContext }
-async function setProposal(p: ProposalPreview | VariantPreview, description: string): Promise<void> {
-  const doc = session.doc; if (!doc) return; const revision = doc.revision;
-  const before = p.generation ? doc.assets.find(a => a.id === p.generation!.assetId) : session.asset;
-  if (before) await session.loadFrame(p.generation?.animation?.frameId ?? before.frames[0].id, before);
-  if (session.doc !== doc || session.doc.revision !== revision) return;
-  proposalId = p.proposalId; $('proposal').hidden = false;
-  if ('variants' in p) {
-    $('proposal-description').textContent = description;
-    await workspace.showReferenceProposal(p, before);
-    return;
-  }
-  workspace.variantPreview.reset(); proposalAssets = p.assets;
-  $('proposal-description').textContent = `${description} · ${p.assets.length} asset mới`;
-  renderProposalPreview(before, p.assets, p.quality, p.generation);
-}
-select('proposal-zoom').onchange = zoomProposal;
-
-async function normalizeReference(): Promise<void> {
-  if (!session.doc || !session.asset) return;
-  await prepareAi();
-  const id = session.doc.id, revision = session.doc.revision;
-  const p = await api(`${session.path}/reference-proposal`, 'POST', {
-    revision,
-    assetId: session.assetId,
-    frameId: session.frameId,
-    generationOptions: workspace.artForm.getGenerationOptions(),
-    artDirection: workspace.artForm.getArtDirection(),
-  });
-  if (session.doc?.id === id && session.doc.revision === revision) {
-    workspace.open();
-    const before = session.asset;
-    await workspace.showReferenceProposal(p, before);
-  }
-}
-
-bind('normalize-reference', () => normalizeReference());
 
 setInterval(() => {
   const samples = [...painter.latencies].sort((a, b) => a - b);
@@ -639,24 +483,19 @@ const events = new EventSource('/api/studio/events');
 events.onmessage = e => {
   try {
     const event = JSON.parse(e.data);
-    if (event.type === 'pixel-quality' && event.run) qualityWorkspace.handleSSE(event.run);
-    if (event.type === 'pixel-batch') {
-      const b = event.batch ?? event.event?.batch;
-      if (b) workspace.handleSSEBatch(b);
-    }
     if (event.projectId !== session.doc?.id) return;
     if (['pixel-external', 'pixel-saved'].includes(event.type) && expectedWrites.has(`${event.projectId}:${event.revision}`)) return;
     if (['pixel-external', 'pixel-saved'].includes(event.type) && event.revision > session.doc!.revision && !(session.saving && event.revision === session.doc!.revision + 1)) {
-      if (session.dirty || session.saving || painter.hasGesture || painter.floating || characterEditor.hasGesture || clipEditor.hasGesture || terrainEditor.hasGesture || mapEditor.hasGesture || qualityWorkspace.dialog.open || qualitySource.dialog.open || rigEditor.dialog.open || rigEditor.hasGesture) {
+      if (session.dirty || session.saving || painter.hasGesture || painter.floating || terrainEditor.hasGesture || mapEditor.hasGesture || engineDialog.open) {
         session.conflict = true;
         $('save-status').textContent = 'Xung đột · bản nháp được giữ';
         error('Dự án đã thay đổi ở tab khác/ngoài app. Lưu bản sao hoặc Tải lại.');
-        clipEditor.updateGate(); workspace.updateApplyGate(); qualityWorkspace.updateGate(); qualitySource.updateGate(); rigEditor.updateGate(); terrainEditor.gate(); mapEditor.gate();
+        engine.refresh(); terrainEditor.gate(); mapEditor.gate();
       } else void openProject(event.projectId).catch(error);
     }
     if (event.type === 'pixel-error') {
       session.conflict = true;
-      clipEditor.updateGate(); workspace.updateApplyGate(); qualityWorkspace.updateGate(); qualitySource.updateGate(); rigEditor.updateGate(); terrainEditor.gate(); mapEditor.gate();
+      engine.refresh(); terrainEditor.gate(); mapEditor.gate();
       error(event.message);
     }
   } catch (err) {
@@ -664,7 +503,7 @@ events.onmessage = e => {
   }
 };
 events.onerror = () => $('save-status').textContent = 'Đang nối lại máy chủ…';
-window.addEventListener('beforeunload', e => { if (session.dirty || session.saving || painter.floating || characterEditor.hasGesture || clipEditor.hasGesture || terrainEditor.hasGesture || mapEditor.hasGesture || rigEditor.hasGesture) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeunload', e => { if (session.dirty || session.saving || painter.floating || terrainEditor.hasGesture || mapEditor.hasGesture || engineClose.disabled) { e.preventDefault(); e.returnValue = ''; } });
 window.addEventListener('resize', () => painter.draw());
 (window as any).pxlDiagnostics = () => ({ visibility: document.visibilityState, focused: document.hasFocus(), samples: [...painter.latencies], width: session.asset?.w, height: session.asset?.h, layers: session.asset?.layers.length, frames: session.asset?.frames.length, ready: painter.ready, pendingFrame: (painter as any).raf, pendingLoads: (session as any).loading.size, rect: $('canvas').getBoundingClientRect().toJSON() });
-void (async () => { await listProjects(); const last = localStorage.getItem('pxl.pixel.last'); if (last && projectList.some(p => p.id === last)) await openProject(last); else render(); })().catch(error);
+void (async () => { await listProjects(); const last = localStorage.getItem('pxl.pixel.last'); if (last && projectList.some(p => p.id === last)) await openProject(last); else { $('ai-open').setAttribute('disabled', ''); $('ai-workspace-open').setAttribute('disabled', ''); render(); } })().catch(error);

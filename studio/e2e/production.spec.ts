@@ -418,8 +418,6 @@ for (const [width, height] of [[1280, 720], [1366, 768], [1920, 1080]]) {
     await review('tilemap', '#map-fit');
     await page.locator('#map-close').click();
     await page.locator('#ai-open').click();
-    await review('generation', '#generation-source');
-    await page.locator('#generation-source').selectOption('external');
     await expect(page.locator('#external-engine-connection')).toContainText('Mock Engine');
     await page.locator('#external-engine-brief').fill('Fixture RC, phác một đạo cụ');
     await page.locator('#external-engine-submit').click();

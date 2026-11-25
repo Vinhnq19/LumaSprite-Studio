@@ -14,5 +14,6 @@
     "noImplicitOverride": true,
     "skipLibCheck": true
   },
-  "include": ["src", "test", "types", "studio"]
+  "include": ["src", "test", "studio"],
+  "exclude": ["test/quality-static-source.test.ts", "studio/e2e/rig-approved-art.spec.ts"]
 }

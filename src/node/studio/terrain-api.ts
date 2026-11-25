@@ -8,7 +8,7 @@ import type { TerrainAssembly } from '../../studio/terrain.ts';
 import { PixelStore } from './pixel-store.ts';
 import { StudioError } from './store.ts';
 import { RenderPool, type RenderTask } from './runner.ts';
-import type { ExportResult } from './render.ts';
+import type { ExportResult } from './render-result.ts';
 import type { TerrainRequest } from './terrain-worker.ts';
 
 interface TerrainJob { id: string; projectId: string; revision: number; status: 'running' | 'ready' | 'failed' | 'canceled' | 'applied'; started: number; ended?: number; error?: string; w?: number; h?: number; warnings?: string[]; options: TerrainAssembly }

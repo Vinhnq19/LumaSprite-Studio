@@ -9,7 +9,7 @@ import { dataArray, dataBoolean, dataId, dataName, dataNumber, dataObject } from
 import { ExternalEngineTransport } from './external-engine-transport.ts';
 import { PixelStore } from './pixel-store.ts';
 import { productionCatalog, productionPackagePlan } from './production-worker.ts';
-import type { ExportResult } from './render.ts';
+import type { ExportResult } from './render-result.ts';
 import type { RenderPool, RenderTask } from './runner.ts';
 import { StudioError } from './store.ts';
 

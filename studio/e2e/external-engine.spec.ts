@@ -17,11 +17,7 @@ test('S3 Chrome: External Engine preview → approval → undo/redo → PNG → 
   const document = async () => wireParse(await (await page.request.get(project)).text());
   const original = await document();
   await page.locator('#ai-open').click();
-  await expect(page.locator('#generation-source')).toHaveValue('legacy');
-  await expect(page.locator('#ai-generate')).toBeVisible();
-  await page.locator('#generation-source').selectOption('external');
   await expect(page.locator('#external-engine-connection')).toContainText('LumaSprite External Mock Engine');
-  await expect(page.locator('#ai-generate')).toBeHidden();
   await expect(page.locator('#external-engine-region-label')).toBeHidden();
   await page.locator('#external-engine-kind').selectOption('character');
   await page.locator('#external-engine-brief').fill('Thợ máy pixel 32×32');
@@ -47,7 +43,24 @@ test('S3 Chrome: External Engine preview → approval → undo/redo → PNG → 
   if (evidence) await page.screenshot({ path: join(evidence, 's3-preview.png') });
   await page.locator('#external-engine-approved').check();
   await expect(apply).toBeEnabled();
-  await apply.click();
+  let release = () => {};
+  const heldResponse = new Promise<void>(resolve => { release = resolve; });
+  let appliedStatus: number | undefined;
+  await page.route('**/external-engine/*/apply', async route => {
+    const response = await route.fetch();
+    appliedStatus = response.status();
+    await heldResponse;
+    await route.fulfill({ response });
+  });
+  try {
+    await apply.click();
+    await expect.poll(() => appliedStatus).toBe(200);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#generation-workspace')).toBeVisible({ timeout: 1500 });
+    await expect(page.locator('#ai-close')).toBeDisabled();
+  } finally {
+    release();
+  }
   await expect(page.locator('#generation-workspace')).toBeHidden();
   await expect(page.locator('#asset-info')).toContainText('Mock character');
   await expect.poll(async () => (await document()).assets.length).toBe(2);
@@ -106,7 +119,6 @@ test('S3 Chrome: rejected and canceled candidates do not modify the project', as
   const document = async () => wireParse(await (await page.request.get(project)).text());
   const original = await document();
   await page.locator('#ai-open').click();
-  await page.locator('#generation-source').selectOption('external');
   const brief = page.locator('#external-engine-brief'), submit = page.locator('#external-engine-submit');
   await brief.fill('[fixture:slow] Hủy từ Studio');
   await submit.click();
