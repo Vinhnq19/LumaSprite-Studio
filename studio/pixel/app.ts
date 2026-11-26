@@ -18,6 +18,7 @@ import { TerrainEditorController } from './terrain-editor.ts';
 import { MapEditorController } from './map-editor.ts';
 import { ProductionWorkspace } from './production-workspace.ts';
 import { ExternalEnginePanel } from './external-engine-panel.ts';
+import { ArtReviewWorkbench } from './art-review/workbench.ts';
 
 document.querySelector('#app')!.innerHTML = `
 <header><a class="brand" href="/" aria-label="LumaSprite Studio"><img alt="" src="${logo}">LumaSprite <span>STUDIO</span></a><span class="badge">PIXEL EDITOR</span><span id="project-title">Xưởng pixel của bạn</span><span class="grow"></span><span id="save-status" role="status">Chọn hoặc tạo dự án</span><button data-command="file.save">Lưu</button><button id="command-search">Tìm lệnh /</button><button id="shortcuts">Phím tắt</button></header>
@@ -153,6 +154,15 @@ for (const [id, label, action] of [['terrain-editor-open', 'Tileset từ vật l
   const button = document.createElement('button'); button.id = id; button.textContent = label; button.disabled = !session.doc;
   $('ai-workspace-open').after(button); bind(id, action);
 }
+const artReview = new ArtReviewWorkbench({ session, error });
+{
+  const button = document.createElement('button');
+  button.id = 'art-review-open';
+  button.type = 'button';
+  button.textContent = 'Art Review';
+  $('ai-workspace-open').after(button);
+  bind('art-review-open', () => { stop(); artReview.open(); });
+}
 
 const selectionReset = document.createElement('button'); selectionReset.id = 'deselect'; selectionReset.dataset.command = 'selection.clear'; selectionReset.textContent = 'Bỏ chọn'; selectionReset.hidden = true; document.querySelector('.canvas-toolbar')!.append(selectionReset);
 let creatingAsset = false, resizing: 'canvas' | 'scale' = 'canvas', anchorX = .5, anchorY = .5, playing = false, playTimer: ReturnType<typeof setTimeout>, playTicket = 0;
@@ -185,6 +195,7 @@ command('selection.cancel', 'Hủy thao tác / vùng nổi', ['Escape'], () => {
 command('command.search', 'Tìm lệnh', ['/'], () => openCommands(), () => true);
 command('terrain.open', 'Tileset từ vật liệu', [], () => terrainEditor.open());
 command('map.open', 'Bản đồ platformer', [], () => mapEditor.open());
+command('art-review.open', 'Mở Art Review Workbench', [], () => { stop(); artReview.open(); }, () => true);
 command('view.fit', 'Vừa khung', [], () => painter.fit()); command('view.actual', 'Xem 100%', [], () => painter.setZoom(1));
 for (const [key, dx, dy] of [['ArrowLeft', -1, 0], ['ArrowRight', 1, 0], ['ArrowUp', 0, -1], ['ArrowDown', 0, 1]] as [string, number, number][]) command(`move.${key}`, `Dịch vùng ${key}`, [key], async () => { if (painter.floating) painter.nudge(dx, dy); else if (dx) { stop(); const a = session.asset!, i = a.frames.findIndex(f => f.id === session.frameId); painter.cancel(); await session.selectFrame(a.frames[Math.max(0, Math.min(a.frames.length - 1, i + dx))].id); } });
 const temporaryTools = new Map<string, Tool>();
@@ -506,4 +517,4 @@ events.onerror = () => $('save-status').textContent = 'Đang nối lại máy ch
 window.addEventListener('beforeunload', e => { if (session.dirty || session.saving || painter.floating || terrainEditor.hasGesture || mapEditor.hasGesture || engineClose.disabled) { e.preventDefault(); e.returnValue = ''; } });
 window.addEventListener('resize', () => painter.draw());
 (window as any).pxlDiagnostics = () => ({ visibility: document.visibilityState, focused: document.hasFocus(), samples: [...painter.latencies], width: session.asset?.w, height: session.asset?.h, layers: session.asset?.layers.length, frames: session.asset?.frames.length, ready: painter.ready, pendingFrame: (painter as any).raf, pendingLoads: (session as any).loading.size, rect: $('canvas').getBoundingClientRect().toJSON() });
-void (async () => { await listProjects(); const last = localStorage.getItem('pxl.pixel.last'); if (last && projectList.some(p => p.id === last)) await openProject(last); else { $('ai-open').setAttribute('disabled', ''); $('ai-workspace-open').setAttribute('disabled', ''); render(); } })().catch(error);
+void (async () => { await listProjects(); const last = localStorage.getItem('pxl.pixel.last'); if (last && projectList.some(p => p.id === last)) await openProject(last); else { $('ai-open').setAttribute('disabled', ''); $('ai-workspace-open').setAttribute('disabled', ''); render(); } if (new URLSearchParams(location.search).get('workbench') === 'art-review' || location.hash === '#art-review') artReview.open(); })().catch(error);
