@@ -6,6 +6,7 @@ import {
   type Pivot,
   type PlaybackDirection,
   type ReviewManifest,
+  type TimingSource,
 } from './types.ts';
 import { parseRubricJson } from './rubrics.ts';
 
@@ -15,6 +16,7 @@ export interface ParsedAnimationMetadata {
   direction: PlaybackDirection;
   pivot?: Pivot;
   tags: AnimationTag[];
+  timingSource: Extract<TimingSource, 'metadata' | 'state-sheet'>;
   warnings: string[];
 }
 
@@ -27,11 +29,30 @@ function asRecord(value: unknown, message: string): Record<string, unknown> {
 
 function parsePivot(value: unknown): Pivot | undefined {
   if (value === undefined || value === null) return undefined;
-  const obj = asRecord(value, 'Pivot phải là object { x, y }.');
+  if (Array.isArray(value)) {
+    if (
+      value.length >= 2 &&
+      typeof value[0] === 'number' &&
+      typeof value[1] === 'number' &&
+      Number.isFinite(value[0]) &&
+      Number.isFinite(value[1])
+    ) {
+      return { x: Math.trunc(value[0]), y: Math.trunc(value[1]) };
+    }
+    throw new Error('Pivot mảng phải có dạng [x, y].');
+  }
+  const obj = asRecord(value, 'Pivot phải là object { x, y } hoặc [x, y].');
   if (typeof obj.x !== 'number' || typeof obj.y !== 'number' || !Number.isFinite(obj.x) || !Number.isFinite(obj.y)) {
     throw new Error('Pivot phải có tọa độ số x, y hợp lệ.');
   }
   return { x: Math.trunc(obj.x), y: Math.trunc(obj.y) };
+}
+
+function parseLoopFlag(value: unknown, fallback = true): boolean {
+  if (typeof value === 'boolean') return value;
+  if (value === 'repeat' || value === 'loop') return true;
+  if (value === 'once' || value === 'one-shot') return false;
+  return fallback;
 }
 
 function parseDuration(value: unknown, label: string): number {
@@ -132,12 +153,12 @@ export function parseAnimationMetadata(
       validateRectBounds(rect, sourceWidth, sourceHeight, idx);
       return rect;
     });
-    return { frames, loop: true, direction: 'forward', tags: [], warnings };
+    return { frames, loop: true, direction: 'forward', tags: [], timingSource: 'metadata', warnings };
   }
 
   const root = asRecord(raw, 'Metadata animation phải là JSON object hoặc mảng timing.');
   let rootPivot = parsePivot(root.pivot);
-  let loop = typeof root.loop === 'boolean' ? root.loop : true;
+  let loop = parseLoopFlag(root.loop, true);
   let direction = parseDirection(root.direction);
   let tags: AnimationTag[] = [];
 
@@ -187,13 +208,46 @@ export function parseAnimationMetadata(
       loop = tags[0].loop;
       direction = tags[0].direction;
     }
-    return { frames, loop, direction, pivot: rootPivot, tags, warnings };
+    return { frames, loop, direction, pivot: rootPivot, tags, timingSource: 'metadata', warnings };
   }
 
-  // Format C: Studio / Aseprite frames object map or frames array
+  // Format B2: Engine UI state sheet ({ states: [{ id, rect: { x, y, w, h } }] })
+  if (Array.isArray(root.states)) {
+    if (!root.states.length) throw new Error('Danh sách "states" trong UI metadata rỗng.');
+    const frames: StripSliceRect[] = root.states.map((entry, idx) => {
+      const state = asRecord(entry, `states[${idx}] phải là object.`);
+      const rectObj = asRecord(
+        state.rect ?? state.frame,
+        `states[${idx}] thiếu trường "rect" ({x,y,w,h}).`,
+      );
+      const rect: StripSliceRect = {
+        x: Number(rectObj.x),
+        y: Number(rectObj.y),
+        w: Number(rectObj.w),
+        h: Number(rectObj.h),
+        durationMs: 1000,
+        label: typeof state.id === 'string' && state.id.trim() ? state.id.trim() : `state-${idx + 1}`,
+        pivot: parsePivot(state.pivot) ?? rootPivot,
+      };
+      validateRectBounds(rect, sourceWidth, sourceHeight, idx);
+      return rect;
+    });
+    warnings.push('UI state sheet (tĩnh theo trạng thái — không phải animation timing).');
+    return {
+      frames,
+      loop: false,
+      direction: 'forward',
+      pivot: rootPivot ?? frames[0]?.pivot,
+      tags: [],
+      timingSource: 'state-sheet',
+      warnings,
+    };
+  }
+
+  // Format C: Studio / Aseprite / Engine frames object map or frames array
   const rawFrames = root.frames;
   if (!rawFrames) {
-    throw new Error('JSON metadata thiếu trường "frames" hoặc "durations".');
+    throw new Error('JSON metadata thiếu trường "frames", "durations" hoặc "states".');
   }
 
   const entries: { key?: string; obj: Record<string, unknown> }[] = Array.isArray(rawFrames)
@@ -217,19 +271,32 @@ export function parseAnimationMetadata(
     const obj = entry.obj;
     const durationMs = parseDuration(obj.durationMs ?? obj.duration, `Frame #${idx + 1}`);
     const framePivot = parsePivot(obj.pivot) ?? rootPivot;
-    const label = typeof obj.label === 'string' ? obj.label : entry.key;
+    const label =
+      typeof obj.label === 'string'
+        ? obj.label
+        : typeof obj.phase === 'string'
+          ? obj.phase
+          : typeof obj.id === 'string'
+            ? obj.id
+            : entry.key;
 
     let x: number;
     let y: number;
     let w: number;
     let h: number;
 
-    if (obj.frame && typeof obj.frame === 'object' && !Array.isArray(obj.frame)) {
-      const f = obj.frame as Record<string, unknown>;
-      x = Number(f.x);
-      y = Number(f.y);
-      w = Number(f.w);
-      h = Number(f.h);
+    const box =
+      obj.frame && typeof obj.frame === 'object' && !Array.isArray(obj.frame)
+        ? (obj.frame as Record<string, unknown>)
+        : obj.rect && typeof obj.rect === 'object' && !Array.isArray(obj.rect)
+          ? (obj.rect as Record<string, unknown>)
+          : undefined;
+
+    if (box) {
+      x = Number(box.x);
+      y = Number(box.y);
+      w = Number(box.w);
+      h = Number(box.h);
     } else if (
       typeof obj.x === 'number' &&
       typeof obj.y === 'number' &&
@@ -258,7 +325,7 @@ export function parseAnimationMetadata(
   });
 
   tags = parseTags(root.tags ?? meta?.frameTags, frames.length);
-  if (typeof root.loop !== 'boolean' && tags.length) {
+  if (root.loop === undefined && tags.length) {
     loop = tags[0].loop;
   }
   if (root.direction === undefined && tags.length) {
@@ -271,6 +338,7 @@ export function parseAnimationMetadata(
     direction,
     pivot: rootPivot ?? frames[0]?.pivot,
     tags,
+    timingSource: 'metadata',
     warnings,
   };
 }

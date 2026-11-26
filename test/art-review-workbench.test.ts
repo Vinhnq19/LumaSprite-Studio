@@ -12,6 +12,7 @@ import {
   checkCompatibility,
   computeAlignedLayout,
   computeFrameDiff,
+  computeIntegerFitZoom,
   computePixelDiff,
   computeSilhouette,
   readPixelRgba,
@@ -314,4 +315,87 @@ test('ArtReview rubrics & report: 7 families, non-E7 disclaimer, no auto-PASS, J
   assert.match(md, /Critical Defects:\*\* YES/);
   assert.match(md, /không dùng điểm trung bình/);
   assert.doesNotMatch(md, /Artistic PASS/);
+});
+
+test('ArtReview acceptance upgrades: integer Focus/Fit zoom, Engine timing/states schemas, and Critical rationale', () => {
+  assert.equal(computeIntegerFitZoom(16, 16, 480, 320), 16);
+  assert.equal(computeIntegerFitZoom(24, 24, 480, 320), 12);
+  assert.equal(computeIntegerFitZoom(64, 64, 480, 320), 4);
+  assert.equal(computeIntegerFitZoom(320, 208, 480, 320), 1);
+
+  // Engine E5.4 W2 Walk schema (pivot array, loop: "repeat", rect, phase)
+  const w2Meta = parseAnimationMetadata(
+    JSON.stringify({
+      version: 1,
+      kind: 'lumasprite-animation-timing',
+      pivot: [30, 59],
+      loop: 'repeat',
+      frames: [
+        { phase: 'contact', durationMs: 120, rect: { x: 0, y: 0, w: 64, h: 64 } },
+        { phase: 'down', durationMs: 115, rect: { x: 64, y: 0, w: 64, h: 64 } },
+      ],
+    }),
+    128,
+    64,
+  );
+  assert.deepEqual(w2Meta.pivot, { x: 30, y: 59 });
+  assert.equal(w2Meta.loop, true);
+  assert.equal(w2Meta.timingSource, 'metadata');
+  assert.deepEqual(
+    w2Meta.frames.map(f => f.durationMs),
+    [120, 115],
+  );
+  assert.deepEqual(
+    w2Meta.frames.map(f => f.label),
+    ['contact', 'down'],
+  );
+
+  // Engine E6.4 VFX schema (loop: "once")
+  const vfxMeta = parseAnimationMetadata(
+    JSON.stringify({
+      version: 1,
+      kind: 'lumasprite-vfx-timing',
+      pivot: [24, 30],
+      loop: 'once',
+      frames: [
+        { phase: 'anticipation', durationMs: 115, rect: { x: 0, y: 0, w: 48, h: 48 } },
+        { phase: 'peak', durationMs: 105, rect: { x: 48, y: 0, w: 48, h: 48 } },
+      ],
+    }),
+    96,
+    48,
+  );
+  assert.equal(vfxMeta.loop, false);
+  assert.equal(vfxMeta.timingSource, 'metadata');
+
+  // Engine E6.4 UI states.json schema
+  const uiStates = parseAnimationMetadata(
+    JSON.stringify({
+      version: 1,
+      pivot: [8, 15],
+      states: [
+        { id: 'normal', rect: { x: 0, y: 0, w: 16, h: 16 } },
+        { id: 'active', rect: { x: 16, y: 0, w: 16, h: 16 } },
+      ],
+    }),
+    32,
+    16,
+  );
+  assert.equal(uiStates.timingSource, 'state-sheet');
+  assert.equal(uiStates.loop, false);
+  assert.deepEqual(
+    uiStates.frames.map(f => f.label),
+    ['normal', 'active'],
+  );
+
+  // Critical selection rationale roundtrip & Markdown warning
+  const session = createEmptyReviewSession('character', DEFAULT_WORKBENCH_RUBRIC);
+  session.scores.anatomy = { score: 2, severity: 'critical', note: 'Vai bị lệch' };
+  session.decision = 'candidate';
+  session.criticalOverrideRationale = 'Giữ B để đối chiếu silhouette, sẽ sửa vai ở vòng sau.';
+  const reparsed = parseReviewJson(serializeReviewJson(session));
+  assert.equal(reparsed.criticalOverrideRationale, session.criticalOverrideRationale);
+  const md = renderReviewMarkdown(reparsed, DEFAULT_WORKBENCH_RUBRIC);
+  assert.match(md, /KHÔNG tự đánh dấu Artistic PASS/);
+  assert.match(md, /Critical Selection Rationale:\*\* Giữ B để đối chiếu silhouette/);
 });

@@ -118,6 +118,34 @@ export function checkCompatibility(
   };
 }
 
+/**
+ * Compute the largest integer nearest-neighbor zoom factor (clamped to 1..maxZoom)
+ * that fits spriteW×spriteH inside viewportW×viewportH without blurring or distortion.
+ */
+export function computeIntegerFitZoom(
+  spriteW: number,
+  spriteH: number,
+  viewportW: number,
+  viewportH: number,
+  padding = 24,
+  maxZoom = 16,
+): number {
+  if (
+    !Number.isFinite(spriteW) ||
+    !Number.isFinite(spriteH) ||
+    spriteW < 1 ||
+    spriteH < 1 ||
+    !Number.isFinite(viewportW) ||
+    !Number.isFinite(viewportH)
+  ) {
+    return 1;
+  }
+  const availW = Math.max(1, viewportW - padding);
+  const availH = Math.max(1, viewportH - padding);
+  const raw = Math.floor(Math.min(availW / spriteW, availH / spriteH));
+  return Math.max(1, Math.min(maxZoom, raw));
+}
+
 /** Compute non-negative integer placement for A and B inside a union pixel canvas without scaling. */
 export function computeAlignedLayout(
   a: { width: number; height: number; pivot?: Pivot },

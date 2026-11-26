@@ -33,7 +33,8 @@
    - Nếu đang mở dự án trong Studio, có thể chọn nhanh **Từ dự án** để chụp snapshot read-only của asset (không sửa tài liệu gốc).
 3. **So sánh pixel chính xác:**
    - Chọn chế độ **Song song**, **Chỉ A**, **Chỉ B**, **Blink A/B** (250/500/800 ms), **Pixel Diff**, hoặc **Silhouette / Alpha** (`Silhouette alpha > 0` hoặc `Kênh Alpha 0–255`).
-   - Phóng đại nguyên lần **1× / 2× / 4× / 8×** (`imageSmoothingEnabled = false`), kéo chuột để pan đồng bộ A/B, đổi nền **Checkerboard / Nền tối / Nền sáng**.
+   - Phóng đại nguyên lần **1× Native / 2× / 4× / 8× / 12× / 16×** (`imageSmoothingEnabled = false`), hoặc bấm **Focus / Fit** (`F`) để tự chọn mức zoom nguyên lần lớn nhất vừa khung (dùng chung một tỷ lệ cho cả A và B, không co giãn lệch), hoặc bấm **Mở rộng xem** (`Z`) để thu gọn thanh nạp tệp cho sprite nhỏ hoặc cảnh `320×208`.
+   - Kéo chuột để pan đồng bộ A/B, đổi nền **Checkerboard / Nền tối / Nền sáng**.
    - Nếu A và B khác kích thước hoặc pivot, thanh cảnh báo căn chỉnh sẽ hiện; chọn chế độ căn (`Tâm ảnh`, `Đáy giữa`, `Theo Pivot`, hoặc `Tọa độ tay`) và tick **Xác nhận căn chỉnh** trước khi kết luận Pixel Diff.
    - Di chuột lên canvas để đọc tọa độ và **RGBA (0–255) + Hex** đồng thời của A và B; nhấp chuột trái để khóa/mở khóa điểm đo.
 4. **Đánh giá Animation:**
@@ -46,7 +47,7 @@
    - Bấm **Xuất Review JSON** hoặc **Xuất Markdown**; dữ liệu phiên tự lưu tạm trong `localStorage` khi chuyển tab hoặc tải lại trang.
 
 ### Phím tắt trong Workbench
-- `1`, `2`, `4`, `8`: Đổi zoom 1× / 2× / 4× / 8×
+- `1`, `2`, `4`, `8`: Đổi zoom 1× / 2× / 4× / 8× · `F`: Focus / Fit (zoom nguyên lần lớn nhất vừa khung) · `Z`: Mở rộng / thu gọn vùng xem
 - `T`: Chuyển qua lại Chỉ A / Chỉ B (`A` = Chỉ A, `B` = Chỉ B)
 - `K`: Blink A/B · `D`: Pixel Diff · `S`: Silhouette / Alpha
 - `G`: Bật/tắt lưới (khi zoom ≥ 4×) · `P`: Bật/tắt Pivot · `O`: Bật/tắt Onion-skin
@@ -54,12 +55,14 @@
 
 ---
 
-## 3. Technical QA & Known Limitations
+## 3. Technical QA, Real Engine Asset Acceptance & Known Limitations
 
 - **Typecheck (`npm run typecheck`)**: PASS (0 errors under TypeScript 7 strict/NodeNext).
 - **Build (`npm run build`)**: PASS (`dist/` + Vite studio bundle).
-- **Unit Tests (`npm test`)**: 103/103 PASS (98 existing Studio tests + 5 new Art Review test suites in `test/art-review-workbench.test.ts`, 0 skipped).
-- **Browser E2E (`npm run test:studio-ui`)**: Verified across Chrome desktop viewports (`1280×720`, `1366×768`, `1440×960`).
+- **Unit Tests (`npm test`)**: **104/104 PASS** (98 existing Studio tests + 6 Art Review test suites in `test/art-review-workbench.test.ts`, 0 skipped).
+- **Browser E2E (`npm run test:studio-ui`)**: **46/46 PASS** across Chrome desktop viewports (`1280×720`, `1366×768`, `1440×960`) including:
+  - `studio/e2e/art-review-workbench.spec.ts` (2 specs: pixel-perfect A/B, Diff, Silhouette, Animation sync, Review export/reload).
+  - `studio/e2e/art-review-real-assets.spec.ts` (4 specs reading locked `D:\LumaSprite-Engine` E4.4/E5.4/E6.2/E6.3/E6.4 assets read-only: 64×64 Surveyor R2 vs Courier Rev, 8-frame W2 Walk `880 ms` vs `960 ms` + pivot `(30,59)` vs `(32,58)`, 320×208 C1 vs R1 Environment, 16×16 UI state sheet `normal`/`active` vs 32×32 barrel mismatch, and E6.4 VFX one-shot strips `685 ms` vs `410 ms`).
 
 ### Known Limitations
 1. **Local Reload Sprite Cache Cap**: Persisting loaded PNG bytes in browser `localStorage` is capped at `256 KiB` per slot to stay well below browser quota. Review scores, notes, decisions, and SHA-256 references still persist across reload for larger sheets, while the user is prompted to re-pick PNGs larger than `256 KiB` after a full page reload.

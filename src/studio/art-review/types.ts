@@ -39,7 +39,7 @@ export interface ReviewFrame {
   pivot?: Pivot;
 }
 
-export type TimingSource = 'metadata' | 'explicit-default' | 'single-frame';
+export type TimingSource = 'metadata' | 'explicit-default' | 'single-frame' | 'state-sheet';
 export type PlaybackDirection = 'forward' | 'reverse' | 'ping-pong';
 
 export interface AnimationTag {
@@ -84,7 +84,7 @@ export type BackgroundMode = 'checker' | 'light' | 'dark';
 export type ViewMode = 'side-by-side' | 'toggle-a' | 'toggle-b' | 'blink' | 'diff' | 'silhouette';
 export type SilhouetteMode = 'binary' | 'alpha-channel';
 export type SyncMode = 'time' | 'frame';
-export type ZoomLevel = 1 | 2 | 4 | 8;
+export type ZoomLevel = number;
 
 export interface RubricCriterion {
   id: string;
@@ -168,6 +168,7 @@ export interface ReviewSessionData {
   candidateRef?: AssetReferenceSnapshot;
   alignment: AlignmentConfig;
   decision: ReviewDecision;
+  criticalOverrideRationale?: string;
   summaryNote: string;
   scores: Record<string, CriterionScore>;
   regionNotes: RegionNote[];

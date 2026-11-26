@@ -68,6 +68,7 @@ export function createEmptyReviewSession(
     rubricIsWorkbenchDefault: rubric.isWorkbenchDefault,
     alignment: { mode: 'top-left', offsetX: 0, offsetY: 0, confirmed: false },
     decision: 'undecided',
+    criticalOverrideRationale: '',
     summaryNote: '',
     scores,
     regionNotes: [],
@@ -140,7 +141,10 @@ function validateRef(raw: unknown, expectedSlot: 'baseline' | 'candidate'): Asse
     frameCount: typeof obj.frameCount === 'number' && obj.frameCount >= 1 ? obj.frameCount : obj.frameDurationsMs.length,
     frameDurationsMs: obj.frameDurationsMs.map(d => Math.round(d as number)),
     timingSource:
-      obj.timingSource === 'metadata' || obj.timingSource === 'explicit-default' || obj.timingSource === 'single-frame'
+      obj.timingSource === 'metadata' ||
+      obj.timingSource === 'explicit-default' ||
+      obj.timingSource === 'single-frame' ||
+      obj.timingSource === 'state-sheet'
         ? obj.timingSource
         : 'single-frame',
     pivot:
@@ -240,6 +244,8 @@ export function parseReviewJson(text: string): ReviewSessionData {
     candidateRef: validateRef(obj.candidateRef, 'candidate'),
     alignment: obj.alignment ? validateAlignment(obj.alignment) : { mode: 'top-left', offsetX: 0, offsetY: 0, confirmed: false },
     decision: obj.decision as ReviewDecision,
+    criticalOverrideRationale:
+      typeof obj.criticalOverrideRationale === 'string' ? obj.criticalOverrideRationale : '',
     summaryNote: typeof obj.summaryNote === 'string' ? obj.summaryNote : '',
     scores,
     regionNotes,
@@ -253,9 +259,9 @@ export function parseReviewJson(text: string): ReviewSessionData {
 function decisionLabel(decision: ReviewDecision): string {
   switch (decision) {
     case 'baseline':
-      return 'A — Baseline (Chọn bản A)';
+      return 'A — Baseline (Chọn bản A để đối chiếu — KHÔNG tự đánh dấu Artistic PASS)';
     case 'candidate':
-      return 'B — Candidate (Chọn bản B)';
+      return 'B — Candidate (Chọn bản B để đối chiếu — KHÔNG tự đánh dấu Artistic PASS)';
     case 'neither':
       return 'Neither (Không đạt — yêu cầu làm lại / chỉnh sửa)';
     case 'undecided':
@@ -291,8 +297,17 @@ export function renderReviewMarkdown(session: ReviewSessionData, rubric: RubricD
     `- **Tool Version:** LumaSprite Studio Art Review Workbench v${session.toolVersion}`,
     `- **Asset Family:** \`${session.assetFamily}\``,
     `- **Rubric:** ${session.rubricName} (\`${session.rubricId}\` v${session.rubricVersion})${session.rubricIsWorkbenchDefault ? ' — Workbench default (không phải E7 Universal Quality Contract v1)' : ''}`,
-    `- **Human Decision:** **${decisionLabel(session.decision)}**`,
+    `- **Comparison Selection (Not Auto-PASS):** **${decisionLabel(session.decision)}**`,
     `- **Critical Defects:** ${summary.hasCriticalDefect ? `YES (${summary.criticalCriteriaIds.length} tiêu chí, ${summary.criticalRegionCount} ghim vùng)` : 'None recorded'}`,
+    ...(summary.hasCriticalDefect && (session.decision === 'baseline' || session.decision === 'candidate')
+      ? [
+          `- **Critical Selection Rationale:** ${
+            session.criticalOverrideRationale?.trim()
+              ? session.criticalOverrideRationale.trim()
+              : '⚠ CHƯA NHẬP LÝ DO (MISSING_CRITICAL_RATIONALE)'
+          }`,
+        ]
+      : []),
     `- **Score Range:** ${summary.scoredCount}/${summary.totalCount} tiêu chí đã chấm${summary.minScore !== null ? ` · Min ${summary.minScore}, Max ${summary.maxScore} (không dùng điểm trung bình để che lỗi)` : ''}`,
     '',
     '## Asset References',

@@ -207,6 +207,12 @@ test('Art Review Workbench: standalone open, RGBA 1x/8x, Blink, Diff, Silhouette
 
   await page.locator('#arw-summary-note').fill('Candidate B đọc tốt hơn nhưng cần sửa vật liệu kim loại.');
   await page.locator('[data-arw-decision="candidate"]').click();
+  await expect(page.locator('#arw-critical-override-box')).toBeVisible();
+
+  // Attempting export without rationale when Critical defect is active must warn & require rationale
+  await page.locator('#arw-export-json').click();
+  await expect(page.locator('#arw-error')).toContainText('Lý do chọn khi còn lỗi Critical');
+  await page.locator('#arw-critical-rationale').fill('Chọn B để đối chiếu silhouette tốt hơn, giữ sửa tiếp vật liệu.');
 
   // Switching modes must never lose review state
   await page.locator('[data-arw-mode="diff"]').click();
@@ -245,7 +251,8 @@ test('Art Review Workbench: standalone open, RGBA 1x/8x, Blink, Diff, Silhouette
   const exportedMd = await readFile((await dlMd.path())!, 'utf8');
   expect(exportedMd).toContain('B — Candidate');
   expect(exportedMd).toContain('Critical Defects:** YES');
-  expect(exportedMd).not.toContain('Artistic PASS');
+  expect(exportedMd).toContain('KHÔNG tự đánh dấu Artistic PASS');
+  expect(exportedMd).not.toMatch(/Verdict:\s*Artistic PASS/i);
 
   // Reload & Reopen Workbench restores persisted session + cached sprites
   await page.reload();

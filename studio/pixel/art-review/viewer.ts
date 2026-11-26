@@ -1,5 +1,6 @@
 import {
   computeFrameDiff,
+  computeIntegerFitZoom,
   computePixelDiff,
   computeSilhouette,
   readPixelRgba,
@@ -203,17 +204,48 @@ export class ComparisonViewer {
   }
 
   setZoom(zoom: ZoomLevel): void {
-    if (this.state.zoom === zoom) return;
-    this.state.zoom = zoom;
+    const clamped = Math.max(1, Math.min(16, Math.round(zoom)));
+    if (this.state.zoom === clamped) return;
+    this.state.zoom = clamped;
     this.onStateChange();
     this.render();
   }
 
   stepZoom(delta: 1 | -1): void {
-    const steps: readonly ZoomLevel[] = [1, 2, 4, 8];
-    const index = steps.indexOf(this.state.zoom);
+    const steps = [1, 2, 4, 8, 12, 16];
+    let index = steps.findIndex(s => s >= this.state.zoom);
+    if (index < 0) index = steps.length - 1;
     const next = steps[Math.max(0, Math.min(steps.length - 1, index + delta))];
     this.setZoom(next);
+  }
+
+  /**
+   * Fit the largest loaded sprite cleanly inside the visible comparison pane
+   * using a single shared integer nearest-neighbor zoom (1..16), never scaling A and B differently.
+   */
+  fitIntegerZoom(): number {
+    const frameA = this.baseline.frame;
+    const frameB = this.candidate.frame;
+    const isDiff = this.state.viewMode === 'diff' && this.latestDiff;
+    const spriteW = isDiff
+      ? this.latestDiff!.width
+      : Math.max(frameA?.width ?? 0, frameB?.width ?? 0);
+    const spriteH = isDiff
+      ? this.latestDiff!.height
+      : Math.max(frameA?.height ?? 0, frameB?.height ?? 0);
+    if (spriteW < 1 || spriteH < 1) return this.state.zoom;
+
+    const dual = this.state.viewMode === 'side-by-side' || this.state.viewMode === 'silhouette';
+    const host = dual
+      ? this.canvasA.parentElement ?? this.hostDual
+      : this.canvasSingle.parentElement ?? this.hostSingle;
+    const fit = computeIntegerFitZoom(spriteW, spriteH, host.clientWidth, host.clientHeight, 24, 16);
+    this.state.panX = 0;
+    this.state.panY = 0;
+    this.state.zoom = fit;
+    this.onStateChange();
+    this.render();
+    return fit;
   }
 
   resetPan(): void {

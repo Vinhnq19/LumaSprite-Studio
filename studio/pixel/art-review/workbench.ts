@@ -238,40 +238,49 @@ export class ArtReviewWorkbench {
           </div>
 
           <div class="arw-toolbar" role="toolbar" aria-label="Công cụ so sánh hình ảnh">
-            <button type="button" data-arw-mode="side-by-side" class="active">Song song</button>
-            <button type="button" data-arw-mode="toggle-a">Chỉ A</button>
-            <button type="button" data-arw-mode="toggle-b">Chỉ B</button>
-            <button type="button" data-arw-mode="blink">Blink A/B</button>
-            <button type="button" data-arw-mode="diff">Pixel Diff</button>
-            <button type="button" data-arw-mode="silhouette">Silhouette / Alpha</button>
-            <span aria-hidden="true">|</span>
-            ${([1, 2, 4, 8] as const)
-              .map(z => `<button type="button" data-arw-zoom="${z}" class="${z === 1 ? 'active' : ''}">${z}×</button>`)
-              .join('')}
-            <button id="arw-pan-reset" type="button">Canh giữa</button>
-            <label>Nền
-              <select id="arw-bg" aria-label="Nền hiển thị">
-                <option value="checker">Checkerboard</option>
-                <option value="dark">Nền tối</option>
-                <option value="light">Nền sáng</option>
-              </select>
-            </label>
-            <label id="arw-blink-wrap" hidden>Nhịp Blink
-              <select id="arw-blink-ms" aria-label="Tốc độ blink">
-                <option value="250">250 ms</option>
-                <option value="500" selected>500 ms</option>
-                <option value="800">800 ms</option>
-              </select>
-            </label>
-            <label id="arw-sil-wrap" hidden>Alpha view
-              <select id="arw-sil-mode" aria-label="Chế độ silhouette">
-                <option value="binary">Silhouette (alpha &gt; 0)</option>
-                <option value="alpha-channel">Kênh Alpha (0–255)</option>
-              </select>
-            </label>
-            <label><input id="arw-grid" type="checkbox"> Lưới (≥4×)</label>
-            <label><input id="arw-pivot-overlay" type="checkbox" checked> Pivot</label>
-            <label><input id="arw-pin-mode" type="checkbox"> Ghim nhận xét vùng</label>
+            <div class="arw-tool-group" aria-label="Chế độ so sánh">
+              <button type="button" data-arw-mode="side-by-side" class="active">Song song</button>
+              <button type="button" data-arw-mode="toggle-a">Chỉ A</button>
+              <button type="button" data-arw-mode="toggle-b">Chỉ B</button>
+              <button type="button" data-arw-mode="blink">Blink A/B</button>
+              <button type="button" data-arw-mode="diff">Pixel Diff</button>
+              <button type="button" data-arw-mode="silhouette">Silhouette / Alpha</button>
+            </div>
+            <div class="arw-tool-group" aria-label="Phóng nguyên lần">
+              <button type="button" data-arw-zoom="1" class="active" title="Kích thước gốc 1:1 (bắt buộc kiểm tra)">1× Native</button>
+              ${([2, 4, 8, 12, 16] as const)
+                .map(z => `<button type="button" data-arw-zoom="${z}">${z}×</button>`)
+                .join('')}
+              <button id="arw-zoom-fit" type="button" title="Phóng nguyên lần lớn nhất vừa khung (F)">Focus / Fit</button>
+              <button id="arw-stage-focus" type="button" aria-pressed="false" title="Thu gọn thanh nạp tệp để mở rộng vùng xem (Z)">Mở rộng xem</button>
+              <button id="arw-pan-reset" type="button">Canh giữa</button>
+              <span id="arw-zoom-indicator" class="arw-zoom-pill" aria-live="polite">1× Native</span>
+            </div>
+            <div class="arw-tool-group" aria-label="Tùy chọn hiển thị">
+              <label>Nền
+                <select id="arw-bg" aria-label="Nền hiển thị">
+                  <option value="checker">Checkerboard</option>
+                  <option value="dark">Nền tối</option>
+                  <option value="light">Nền sáng</option>
+                </select>
+              </label>
+              <label id="arw-blink-wrap" hidden>Nhịp Blink
+                <select id="arw-blink-ms" aria-label="Tốc độ blink">
+                  <option value="250">250 ms</option>
+                  <option value="500" selected>500 ms</option>
+                  <option value="800">800 ms</option>
+                </select>
+              </label>
+              <label id="arw-sil-wrap" hidden>Alpha view
+                <select id="arw-sil-mode" aria-label="Chế độ silhouette">
+                  <option value="binary">Silhouette (alpha &gt; 0)</option>
+                  <option value="alpha-channel">Kênh Alpha (0–255)</option>
+                </select>
+              </label>
+              <label><input id="arw-grid" type="checkbox"> Lưới (≥4×)</label>
+              <label><input id="arw-pivot-overlay" type="checkbox" checked> Pivot</label>
+              <label><input id="arw-pin-mode" type="checkbox"> Ghim vùng</label>
+            </div>
           </div>
 
           <div class="arw-stage">
@@ -339,12 +348,18 @@ export class ArtReviewWorkbench {
           </div>
 
           <section>
-            <h2>Quyết định của Reviewer</h2>
-            <div class="arw-decisions" role="group" aria-label="Chọn kết quả A B hoặc Neither">
+            <h2>Lựa chọn so sánh (Không phải Artistic PASS)</h2>
+            <small class="hint">Chọn A/B chỉ ghi nhận bản đối chiếu tốt hơn; không tự đánh dấu Artistic PASS.</small>
+            <div class="arw-decisions" role="group" aria-label="Chọn kết quả so sánh A B hoặc Neither">
               <button type="button" data-arw-decision="baseline">Chọn A — Baseline</button>
               <button type="button" data-arw-decision="candidate">Chọn B — Candidate</button>
               <button type="button" data-arw-decision="neither">Neither (Chưa đạt)</button>
               <button type="button" data-arw-decision="undecided" class="active">Chưa kết luận</button>
+            </div>
+            <div id="arw-critical-override-box" class="arw-critical-override" hidden>
+              <strong>⚠ Đang chọn bản khi vẫn còn lỗi Critical</strong>
+              <span>Việc chọn để đối chiếu KHÔNG phải duyệt đạt mỹ thuật. Hãy ghi rõ lý do:</span>
+              <textarea id="arw-critical-rationale" rows="2" aria-label="Lý do chọn khi còn lỗi Critical" placeholder="Ví dụ: B vẫn tốt hơn A ở silhouette, giữ để sửa tiếp phần vật liệu…"></textarea>
             </div>
           </section>
 
@@ -384,15 +399,17 @@ export class ArtReviewWorkbench {
           <button id="arw-project-load-${slot}" type="button" hidden>Từ dự án</button>
           <button id="arw-clear-${slot}" type="button">Xóa</button>
         </div>
-        <div class="arw-strip-slice">
-          <span>Cắt strip thủ công:</span>
-          <label>W <input id="arw-slice-w-${slot}" type="number" min="1" max="4096" value="32" aria-label="Chiều rộng frame ${title}"></label>
-          <label>H <input id="arw-slice-h-${slot}" type="number" min="1" max="4096" value="32" aria-label="Chiều cao frame ${title}"></label>
-          <button id="arw-slice-btn-${slot}" type="button">Cắt ô</button>
-          <label>Pivot X <input id="arw-pivot-x-${slot}" type="number" step="1" placeholder="—" aria-label="Pivot X ${title}"></label>
-          <label>Y <input id="arw-pivot-y-${slot}" type="number" step="1" placeholder="—" aria-label="Pivot Y ${title}"></label>
-          <button id="arw-pivot-btn-${slot}" type="button">Đặt pivot</button>
-        </div>
+        <details class="arw-slot-tools">
+          <summary>Cắt strip / Pivot thủ công</summary>
+          <div class="arw-strip-slice">
+            <label>W <input id="arw-slice-w-${slot}" type="number" min="1" max="4096" value="32" aria-label="Chiều rộng frame ${title}"></label>
+            <label>H <input id="arw-slice-h-${slot}" type="number" min="1" max="4096" value="32" aria-label="Chiều cao frame ${title}"></label>
+            <button id="arw-slice-btn-${slot}" type="button">Cắt ô</button>
+            <label>Pivot X <input id="arw-pivot-x-${slot}" type="number" step="1" placeholder="—" aria-label="Pivot X ${title}"></label>
+            <label>Y <input id="arw-pivot-y-${slot}" type="number" step="1" placeholder="—" aria-label="Pivot Y ${title}"></label>
+            <button id="arw-pivot-btn-${slot}" type="button">Đặt pivot</button>
+          </div>
+        </details>
       </div>
     `;
   }
@@ -456,6 +473,8 @@ export class ArtReviewWorkbench {
     for (const btn of this.dialog.querySelectorAll<HTMLButtonElement>('[data-arw-zoom]')) {
       btn.onclick = () => this.viewer.setZoom(Number(btn.dataset.arwZoom) as ZoomLevel);
     }
+    this.el('arw-zoom-fit').onclick = () => this.viewer.fitIntegerZoom();
+    this.el('arw-stage-focus').onclick = () => this.toggleStageFocus();
     this.el('arw-pan-reset').onclick = () => this.viewer.resetPan();
     this.el<HTMLSelectElement>('arw-bg').onchange = () => {
       this.viewer.state.background = this.el<HTMLSelectElement>('arw-bg').value as BackgroundMode;
@@ -559,9 +578,14 @@ export class ArtReviewWorkbench {
       btn.onclick = () => {
         this.review.decision = btn.dataset.arwDecision as ReviewDecision;
         this.renderDecisionButtons();
+        this.renderReviewSummaryOnly();
         this.persistDraft();
       };
     }
+    this.el<HTMLTextAreaElement>('arw-critical-rationale').oninput = () => {
+      this.review.criticalOverrideRationale = this.el<HTMLTextAreaElement>('arw-critical-rationale').value;
+      this.persistDraft();
+    };
     this.el<HTMLTextAreaElement>('arw-summary-note').oninput = () => {
       this.review.summaryNote = this.el<HTMLTextAreaElement>('arw-summary-note').value;
       this.persistDraft();
@@ -575,6 +599,12 @@ export class ArtReviewWorkbench {
       if (key === '1' || key === '2' || key === '4' || key === '8') {
         event.preventDefault();
         this.viewer.setZoom(Number(key) as ZoomLevel);
+      } else if (key === 'f') {
+        event.preventDefault();
+        this.viewer.fitIntegerZoom();
+      } else if (key === 'z') {
+        event.preventDefault();
+        this.toggleStageFocus();
       } else if (key === 't') {
         event.preventDefault();
         this.viewer.setViewMode(this.viewer.state.viewMode === 'toggle-a' ? 'toggle-b' : 'toggle-a');
@@ -797,6 +827,7 @@ export class ArtReviewWorkbench {
     if (metadataText) {
       const parsed = parseAnimationMetadata(metadataText, decoded.width, decoded.height);
       const frames = sliceSpriteStrip(decoded.rgba, decoded.width, decoded.height, parsed.frames);
+      this.loop = parsed.loop;
       this.assets[slot] = {
         slot,
         name: baseName,
@@ -812,7 +843,7 @@ export class ArtReviewWorkbench {
         loop: parsed.loop,
         direction: parsed.direction,
         pivot: parsed.pivot,
-        timingSource: 'metadata',
+        timingSource: parsed.timingSource,
         tags: parsed.tags,
         warnings: parsed.warnings,
       };
@@ -1019,9 +1050,23 @@ export class ArtReviewWorkbench {
     }
   }
 
+  private assertCriticalRationaleIfNeeded(): void {
+    const criteria = this.rubric.families[this.review.assetFamily] ?? [];
+    const summary = summarizeReviewScores(criteria, this.review.scores, this.review.regionNotes);
+    const choosing = this.review.decision === 'baseline' || this.review.decision === 'candidate';
+    if (summary.hasCriticalDefect && choosing && !this.review.criticalOverrideRationale?.trim()) {
+      const box = this.el<HTMLTextAreaElement>('arw-critical-rationale');
+      box.focus();
+      throw new Error(
+        'Đang chọn A/B khi vẫn còn lỗi Critical. Hãy ghi rõ lý do vào ô "Lý do chọn khi còn lỗi Critical" trước khi xuất báo cáo.',
+      );
+    }
+  }
+
   private exportReviewJson(): void {
     try {
       this.clearError();
+      this.assertCriticalRationaleIfNeeded();
       this.review.timestamp = new Date().toISOString();
       this.updateSlotMetadataSnapshot('baseline');
       this.updateSlotMetadataSnapshot('candidate');
@@ -1035,6 +1080,7 @@ export class ArtReviewWorkbench {
   private exportReviewMarkdown(): void {
     try {
       this.clearError();
+      this.assertCriticalRationaleIfNeeded();
       this.review.timestamp = new Date().toISOString();
       this.updateSlotMetadataSnapshot('baseline');
       this.updateSlotMetadataSnapshot('candidate');
@@ -1052,9 +1098,19 @@ export class ArtReviewWorkbench {
     this.pendingMeta = {};
     this.rubric = DEFAULT_WORKBENCH_RUBRIC;
     this.review = createEmptyReviewSession('character', this.rubric);
+    this.loop = true;
+    this.syncMode = 'time';
     this.elapsedMs = 0;
     this.manualFrameIndex = 0;
     this.activeRegionNoteId = undefined;
+    this.dialog.classList.remove('arw-stage-focused');
+    this.viewer.state.viewMode = 'side-by-side';
+    this.viewer.state.zoom = 1;
+    this.viewer.state.panX = 0;
+    this.viewer.state.panY = 0;
+    this.viewer.state.onionSkin = false;
+    this.viewer.state.frameDiffOverlay = false;
+    this.viewer.stopBlink();
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch {
@@ -1221,6 +1277,8 @@ export class ArtReviewWorkbench {
   private renderAll(): void {
     this.el<HTMLSelectElement>('arw-family').value = this.review.assetFamily;
     this.el<HTMLTextAreaElement>('arw-summary-note').value = this.review.summaryNote;
+    this.el<HTMLTextAreaElement>('arw-critical-rationale').value =
+      this.review.criticalOverrideRationale ?? '';
     this.renderSlotCards();
     this.renderStrips();
     this.refreshAlignmentAndViewer();
@@ -1274,9 +1332,11 @@ export class ArtReviewWorkbench {
       const timingTag =
         asset.timingSource === 'metadata'
           ? 'timing JSON'
-          : asset.timingSource === 'explicit-default'
-            ? 'cắt tay 100ms'
-            : '1 frame';
+          : asset.timingSource === 'state-sheet'
+            ? 'UI states'
+            : asset.timingSource === 'explicit-default'
+              ? 'cắt tay 100ms'
+              : '1 frame';
       metaEl.textContent = `${asset.fileName} · ${asset.width}×${asset.height} · ${asset.frames.length}f (${timingTag})${pivotStr}${hashStr}`;
     }
   }
@@ -1285,6 +1345,7 @@ export class ArtReviewWorkbench {
     const { seqA, seqB } = this.getSequences();
     const renderRow = (containerId: string, slot: ReviewSlot, seq: ReviewFrame[]) => {
       const row = this.el(containerId);
+      const asset = this.assets[slot];
       row.replaceChildren();
       if (!seq.length) {
         const empty = document.createElement('span');
@@ -1304,7 +1365,13 @@ export class ArtReviewWorkbench {
         thumb.height = 28;
         renderFrameThumbnail(thumb, frame.rgba, frame.width, frame.height);
         const label = document.createElement('span');
-        label.textContent = `#${frame.index + 1} · ${frame.durationMs}ms`;
+        label.textContent =
+          asset?.timingSource === 'state-sheet' && frame.label
+            ? `#${frame.index + 1} · ${frame.label}`
+            : `#${frame.index + 1} · ${frame.durationMs}ms`;
+        btn.title = frame.label
+          ? `Frame #${frame.index + 1} (${frame.label}) · ${frame.durationMs} ms`
+          : `Frame #${frame.index + 1} · ${frame.durationMs} ms`;
         btn.append(thumb, label);
         btn.onclick = () => {
           this.stopPlayback();
@@ -1404,6 +1471,15 @@ export class ArtReviewWorkbench {
     out.textContent = `Diff: ${s.changedPixels}/${s.totalUnionPixels} px khác (RGB: ${s.rgbDiffPixels}, Alpha: ${s.alphaDiffPixels}, Only-A: ${s.onlyAPixels}, Only-B: ${s.onlyBPixels}, max Δ=${s.maxChannelDelta})`;
   }
 
+  private toggleStageFocus(): void {
+    const focused = this.dialog.classList.toggle('arw-stage-focused');
+    const btn = this.el<HTMLButtonElement>('arw-stage-focus');
+    btn.setAttribute('aria-pressed', String(focused));
+    btn.classList.toggle('active', focused);
+    btn.textContent = focused ? 'Thu gọn xem' : 'Mở rộng xem';
+    this.viewer.render();
+  }
+
   private syncToolbarButtons(): void {
     for (const btn of this.dialog.querySelectorAll<HTMLButtonElement>('[data-arw-mode]')) {
       btn.classList.toggle('active', btn.dataset.arwMode === this.viewer.state.viewMode);
@@ -1411,6 +1487,8 @@ export class ArtReviewWorkbench {
     for (const btn of this.dialog.querySelectorAll<HTMLButtonElement>('[data-arw-zoom]')) {
       btn.classList.toggle('active', Number(btn.dataset.arwZoom) === this.viewer.state.zoom);
     }
+    this.el('arw-zoom-indicator').textContent =
+      this.viewer.state.zoom === 1 ? '1× Native' : `${this.viewer.state.zoom}× Nearest`;
     this.el('arw-blink-wrap').hidden = this.viewer.state.viewMode !== 'blink';
     this.el('arw-sil-wrap').hidden = this.viewer.state.viewMode !== 'silhouette';
     this.el<HTMLSelectElement>('arw-bg').value = this.viewer.state.background;
@@ -1439,6 +1517,7 @@ export class ArtReviewWorkbench {
 
     const summary = summarizeReviewScores(criteria, this.review.scores, this.review.regionNotes);
     this.el('arw-critical-alert').hidden = !summary.hasCriticalDefect;
+    this.updateCriticalOverrideBox(summary.hasCriticalDefect);
     this.el('arw-score-summary').textContent =
       `Đã chấm ${summary.scoredCount}/${summary.totalCount} tiêu chí` +
       (summary.minScore !== null ? ` · Thấp nhất: ${summary.minScore} · Cao nhất: ${summary.maxScore}` : '') +
@@ -1516,10 +1595,17 @@ export class ArtReviewWorkbench {
     this.renderRegionNotes();
   }
 
+  private updateCriticalOverrideBox(hasCriticalDefect: boolean): void {
+    const choosing = this.review.decision === 'baseline' || this.review.decision === 'candidate';
+    this.el('arw-critical-override-box').hidden = !(hasCriticalDefect && choosing);
+  }
+
   private renderReviewSummaryOnly(): void {
     const criteria = this.rubric.families[this.review.assetFamily] ?? [];
     const summary = summarizeReviewScores(criteria, this.review.scores, this.review.regionNotes);
     this.el('arw-critical-alert').hidden = !summary.hasCriticalDefect;
+    this.updateCriticalOverrideBox(summary.hasCriticalDefect);
+    this.updateCriticalOverrideBox(summary.hasCriticalDefect);
     this.el('arw-score-summary').textContent =
       `Đã chấm ${summary.scoredCount}/${summary.totalCount} tiêu chí` +
       (summary.minScore !== null ? ` · Thấp nhất: ${summary.minScore} · Cao nhất: ${summary.maxScore}` : '') +
