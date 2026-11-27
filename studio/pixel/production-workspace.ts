@@ -4,9 +4,10 @@ import { type PixelAsset, uid } from '../../src/studio/pixel/model.ts';
 import { emptyProduction, productionKind, productionKinds, productionLimits, productionProfile, sameStamp, sceneSourceIssues,
   type Production, type ProductionAsset, type ProductionKind, type ProductionCatalog, type ScenePlacement } from '../../src/studio/production.ts';
 import { renderSceneFrame, sceneFrameIndices, type ScenePreview } from '../../src/studio/scene-preview.ts';
+import { NativeScenePanel } from './native-scene-panel.ts';
 import { api, type Session } from './session.ts';
 
-type Tab = 'library' | 'style' | 'scene';
+type Tab = 'library' | 'style' | 'scene' | 'native-scene';
 const labels: Record<ProductionKind, string> = { character: 'Nhân vật', prop: 'Đạo cụ', item: 'Vật phẩm', tileset: 'Tileset', animation: 'Animation', ui: 'Giao diện', vfx: 'Hiệu ứng' };
 const statuses = { draft: 'Bản chỉnh sửa', approved: 'Đã duyệt', stale: 'Nội dung đã đổi' };
 const perPage = 12;
@@ -24,6 +25,7 @@ export class ProductionWorkspace {
   private preview?: ScenePreview;
   private animation = 0;
   private alive = 0;
+  private readonly nativePanel: NativeScenePanel;
   private get session() { return this.config.session; }
   private get doc() { return this.session.doc!; }
   private get data() { return this.doc.studio?.production ?? emptyProduction(); }
@@ -45,6 +47,7 @@ export class ProductionWorkspace {
         <button id="prod-tab-library" class="mode-tab" type="button">Thư viện</button>
         <button id="prod-tab-style" class="mode-tab" type="button">Phong cách</button>
         <button id="prod-tab-scene" class="mode-tab" type="button">Cảnh game</button>
+        <button id="prod-tab-native-scene" class="mode-tab" type="button">Scene Engine (E8.4)</button>
         <button id="prod-undo" type="button">Hoàn tác</button><button id="prod-redo" type="button">Làm lại</button>
       </div>
       <div class="prod-context">
@@ -122,8 +125,17 @@ export class ProductionWorkspace {
           <ul id="prod-scene-issues" hidden></ul>
           <div id="prod-stage" data-background="checker"><canvas id="prod-canvas" aria-label="Cảnh game ở lưới pixel gốc" hidden></canvas></div>
         </div>
-      </div>`;
+      </div>
+      <div id="prod-panel-native-scene" class="prod-panel" hidden></div>`;
     document.body.append(this.dialog);
+    this.nativePanel = new NativeScenePanel(this.el('panel-native-scene'), {
+      session: this.config.session,
+      prepare: () => this.config.prepare(),
+      run: (action) => this.run(action),
+      edit: (label, update) => this.edit(label, update),
+      message: (value) => this.message(value),
+      refresh: () => this.refresh(),
+    });
     this.bind();
   }
 
@@ -177,7 +189,7 @@ export class ProductionWorkspace {
     this.dialog.addEventListener('cancel', event => { if (this.busy) event.preventDefault(); });
     this.dialog.onclose = () => this.resetPreview();
     click('close', () => this.dialog.close());
-    for (const tab of ['library', 'style', 'scene'] as const) click(`tab-${tab}`, () => this.showTab(tab));
+    for (const tab of ['library', 'style', 'scene', 'native-scene'] as const) click(`tab-${tab}`, () => this.showTab(tab));
     click('undo', () => this.undo(false)); click('redo', () => this.undo(true));
     click('prev', () => { this.page--; this.renderList(); }); click('next', () => { this.page++; this.renderList(); });
     this.el('search').oninput = () => { this.page = 0; this.renderList(); };
@@ -250,7 +262,7 @@ export class ProductionWorkspace {
   private showTab(tab: Tab): void {
     this.tab = tab;
     if (tab !== 'scene') this.stop();
-    for (const name of ['library', 'style', 'scene'] as const) {
+    for (const name of ['library', 'style', 'scene', 'native-scene'] as const) {
       this.el(`panel-${name}`).hidden = name !== tab;
       this.el(`tab-${name}`).classList.toggle('active', name === tab);
       this.el(`tab-${name}`).setAttribute('aria-pressed', String(name === tab));
@@ -263,6 +275,7 @@ export class ProductionWorkspace {
     this.renderLibrary();
     if (this.tab === 'style') this.renderStyle();
     if (this.tab === 'scene') this.renderScene();
+    if (this.tab === 'native-scene') this.nativePanel.render();
   }
 
   private renderLibrary(): void {
@@ -519,6 +532,7 @@ export class ProductionWorkspace {
 
   resetProject(): void {
     this.catalog = undefined;
+    this.nativePanel.reset();
     this.resetPreview();
     if (this.dialog.open) this.dialog.close();
   }

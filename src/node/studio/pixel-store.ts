@@ -15,6 +15,7 @@ import {
 } from '../../studio/resources.ts';
 import { ResourceBlobStore } from './resource-store.ts';
 import { validateMapChunk } from '../../studio/tilemaps.ts';
+import { canonicalJson } from '../../studio/native-scene.ts';
 import { isDeepStrictEqual } from 'node:util';
 
 function atomic(path: string, data: string | Uint8Array): void { mkdirSync(dirname(path), { recursive: true }); const tmp = `${path}.${randomUUID()}.tmp`; writeFileSync(tmp, data); renameSync(tmp, path); }
@@ -409,15 +410,36 @@ export class PixelStore {
   }
 
   save(id: string, revision: number, document: PixelDocument, label?: string): PixelDocument {
-    return this.saveDocument(id, revision, document, label, false);
+    return this.saveDocument(id, revision, document, label, false, false);
   }
   /** Server-owned human approval endpoint only; never a flag accepted from HTTP. */
   saveQuality(id: string, revision: number, document: PixelDocument, label: string): PixelDocument {
-    return this.saveDocument(id, revision, document, label, true);
+    return this.saveDocument(id, revision, document, label, true, false);
   }
-  private saveDocument(id: string, revision: number, document: PixelDocument, label: string | undefined, qualityMutation: boolean): PixelDocument {
+  /** Server-owned native Engine scene import/re-import endpoint only. */
+  saveNativeScene(id: string, revision: number, document: PixelDocument, label: string): PixelDocument {
+    return this.saveDocument(id, revision, document, label, false, true);
+  }
+  private saveDocument(id: string, revision: number, document: PixelDocument, label: string | undefined, qualityMutation: boolean, nativeSceneImport: boolean): PixelDocument {
     const current = this.load(id); if (current.revision !== revision) throw new StudioError('Dự án đã đổi ở tab khác hoặc ngoài app. Bản nháp được giữ.', 409, 'STALE_REVISION');
     if (!qualityMutation && !isDeepStrictEqual(current.studio?.quality, document.studio?.quality)) throw new StudioError('Nguồn chất lượng chỉ được duyệt qua lệnh Duyệt nguồn; không nhận receipt từ tài liệu gửi lên.', 409);
+    const curNative = current.studio?.production?.nativeScenes ?? [];
+    const nextNative = document.studio?.production?.nativeScenes ?? [];
+    if (curNative.length > 0 && document.studio?.production && document.studio.production.nativeScenes === undefined) {
+      throw new StudioError('Không được bỏ trường nativeScenes của dự án đã có dữ liệu.', 400);
+    }
+    for (const ns of nextNative) {
+      const expectedSha = hash(canonicalJson(ns.engineSnapshot));
+      if (ns.protectedSha256 !== expectedSha) {
+        throw new StudioError(`PROTECTED_ENGINE_SOURCE: Hash nguồn Engine của '${ns.id}' không khớp protectedSha256.`, 409, 'PROTECTED_ENGINE_SOURCE');
+      }
+      const prev = curNative.find(item => item.id === ns.id);
+      if (prev && !nativeSceneImport) {
+        if (prev.protectedSha256 !== ns.protectedSha256 || !isDeepStrictEqual(prev.engineSnapshot, ns.engineSnapshot)) {
+          throw new StudioError(`PROTECTED_ENGINE_SOURCE: Không được sửa dữ liệu gốc Engine của scene '${ns.id}'.`, 409, 'PROTECTED_ENGINE_SOURCE');
+        }
+      }
+    }
     if (current.studio && !document.studio) throw new StudioError('Không được xóa extension studio đã tồn tại.', 400);
     if (current.studio && ![1, 2].includes(current.studio.version)) throw new StudioError('Không được ghi đè extension studio không rõ phiên bản.', 400);
     if (document.studio && ![1, 2].includes(document.studio.version)) throw new StudioError('Phiên bản extension studio không được hỗ trợ.', 400);

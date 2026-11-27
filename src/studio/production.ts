@@ -1,5 +1,6 @@
 import { validateArtDirection, type ArtDirection } from './art-direction.ts';
 import { getAssetLibraryInfo } from './asset-library.ts';
+import { MAX_NATIVE_SCENES, validateNativeSceneRecord, type NativeSceneRecord } from './native-scene.ts';
 import { dataArray, dataBoolean, dataId, dataName, dataNumber, dataObject, dataUnique } from './quality/data.ts';
 import type { PixelDocument } from './pixel/model.ts';
 
@@ -11,7 +12,14 @@ export interface StyleProfile { id: string; name: string; direction: ArtDirectio
 export interface AssetCollection { id: string; name: string; profileId: string | null; assets: string[] }
 export interface ScenePlacement { id: string; assetId: string; tagId: string | null; x: number; y: number; stamp: ProductionStamp }
 export interface ProductionScene { id: string; name: string; mapId: string; mapSha256: string; placements: ScenePlacement[] }
-export interface Production { version: 1; assets: ProductionAsset[]; profiles: StyleProfile[]; collections: AssetCollection[]; scenes: ProductionScene[] }
+export interface Production {
+  version: 1;
+  assets: ProductionAsset[];
+  profiles: StyleProfile[];
+  collections: AssetCollection[];
+  scenes: ProductionScene[];
+  nativeScenes?: NativeSceneRecord[];
+}
 export const emptyProduction = (): Production => ({ version: 1, assets: [], profiles: [], collections: [], scenes: [] });
 export const productionLimits = { scenePlacements: 32, sceneSide: 1024, scenePixels: 2_000_000, packageAssets: 64, packagePixels: 8_000_000 } as const;
 export interface ProductionCatalog {
@@ -62,7 +70,20 @@ function stamp(value: unknown): ProductionStamp {
 }
 
 export function validateProduction(value: unknown, doc?: PixelDocument, maps = doc?.studio?.mapIndex): Production {
-  const input = dataObject(value, ['version', 'assets', 'profiles', 'collections', 'scenes'], 'Production');
+  if (!value || typeof value !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) {
+    throw Error('Production: phải là object thuần.');
+  }
+  const rawObj = value as Record<string, unknown>;
+  const allowedKeys = new Set(['version', 'assets', 'profiles', 'collections', 'scenes', 'nativeScenes']);
+  const requiredKeys = ['version', 'assets', 'profiles', 'collections', 'scenes'] as const;
+  for (const key of Reflect.ownKeys(rawObj)) {
+    if (typeof key !== 'string' || !allowedKeys.has(key)) throw Error('Production: thuộc tính không được hỗ trợ.');
+  }
+  for (const req of requiredKeys) {
+    if (!Object.hasOwn(rawObj, req)) throw Error(`Production: thiếu thuộc tính ${req}.`);
+  }
+  const coreInput = { version: rawObj.version, assets: rawObj.assets, profiles: rawObj.profiles, collections: rawObj.collections, scenes: rawObj.scenes };
+  const input = dataObject(coreInput, ['version', 'assets', 'profiles', 'collections', 'scenes'], 'Production');
   if (input.version !== 1) throw Error('Phiên bản Production không được hỗ trợ.');
   const ids = doc && new Set(doc.assets.map(asset => asset.id));
   const assetId = (raw: unknown) => {
@@ -109,5 +130,10 @@ export function validateProduction(value: unknown, doc?: PixelDocument, maps = d
   dataUnique(assets.map(a => a.assetId), 'Danh mục asset');
   dataUnique(collections.map(c => c.id), 'Collections');
   dataUnique(scenes.map(s => s.id), 'Scenes');
-  return { version: 1, assets, profiles, collections, scenes };
+  const nativeScenes = rawObj.nativeScenes !== undefined
+    ? dataArray(rawObj.nativeScenes, 0, MAX_NATIVE_SCENES, 'Native Scenes').map(entry =>
+        validateNativeSceneRecord(entry, doc, doc?.studio?.resources, profileIds))
+    : undefined;
+  if (nativeScenes) dataUnique(nativeScenes.map(ns => ns.id), 'Native Scenes');
+  return { version: 1, assets, profiles, collections, scenes, ...(nativeScenes !== undefined && { nativeScenes }) };
 }

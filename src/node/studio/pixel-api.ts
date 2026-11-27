@@ -5,6 +5,7 @@ import { playback, wireParse, wireStringify, type PixelDocument } from '../../st
 import { dataId } from '../../studio/quality/data.ts';
 import { validateResourceId, validateResourceRef } from '../../studio/resources.ts';
 import { ExternalEngineApi } from './external-engine-api.ts';
+import { NativeSceneApi } from './native-scene-api.ts';
 import { PixelStore } from './pixel-store.ts';
 import { productionCatalog, type ProductionRequest } from './production-worker.ts';
 import type { ExportResult } from './render-result.ts';
@@ -18,6 +19,7 @@ export function pixelApi(root: string, pool: RenderPool, emit: (event: unknown) 
   const watched = new Map<string, number>();
   const tasks = new Map<string, Set<RenderTask>>();
   const externalEngine = new ExternalEngineApi(store, externalEnginePort, externalEngineTimeoutMs);
+  const nativeScenes = new NativeSceneApi(store);
   const terrain = new TerrainApi(store, pool, emit);
 
   async function run(id: string, request: WorkerRequest): Promise<ExportResult> {
@@ -98,6 +100,9 @@ export function pixelApi(root: string, pool: RenderPool, emit: (event: unknown) 
         ...(operation === 'package' && { 'content-disposition': 'attachment; filename="production.zip"' }) });
       res.end(Buffer.from(out.data));
       return true;
+    }
+    if (action === 'native-scenes') {
+      if (await nativeScenes.route(req, res, url, parts, d, b, observe, emit)) return true;
     }
     if (await terrain.route(req, res, parts, d, b)) return true;
     if (!action) {
